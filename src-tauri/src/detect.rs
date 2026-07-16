@@ -61,7 +61,7 @@ pub(crate) fn home_dir() -> PathBuf {
     std::env::var_os(var).map(PathBuf::from).unwrap_or_default()
 }
 
-fn exe(bin: &str) -> String {
+pub(crate) fn exe(bin: &str) -> String {
     if cfg!(windows) {
         format!("{bin}.exe")
     } else {
@@ -157,7 +157,8 @@ fn run_version(path: &Path) -> Option<String> {
     }
 }
 
-fn command(path: &Path) -> Command {
+/// GUI 앱에서 자식 프로세스 실행 시 Windows 콘솔 창이 번쩍이지 않게 하는 공용 헬퍼
+pub(crate) fn command(path: &Path) -> Command {
     let cmd = Command::new(path);
     #[cfg(windows)]
     let cmd = {

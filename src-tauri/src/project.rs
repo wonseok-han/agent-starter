@@ -1,6 +1,6 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -60,7 +60,7 @@ pub async fn run_first_chat(project_path: String) -> Result<String, String> {
         }
         let bin = crate::detect::claude_bin()
             .ok_or_else(|| "클로드 코드가 아직 설치되어 있지 않아요.".to_string())?;
-        let out = Command::new(&bin)
+        let out = crate::detect::command(&bin)
             .args([
                 "-p",
                 "코딩 도우미를 처음 만나는 사용자에게 두 문장 이내의 짧고 따뜻한 한국어 환영 인사를 해 주세요.",

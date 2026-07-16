@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::Mutex;
 use tauri::ipc::Channel;
 use tauri::State;
@@ -36,7 +36,7 @@ pub async fn login_status() -> Result<LoginStatus, String> {
     tauri::async_runtime::spawn_blocking(|| {
         let bin = crate::detect::claude_bin()
             .ok_or_else(|| "클로드 코드가 아직 설치되어 있지 않아요.".to_string())?;
-        let out = Command::new(&bin)
+        let out = crate::detect::command(&bin)
             .args(["auth", "status", "--json"])
             .stdin(Stdio::null())
             .output()
@@ -66,7 +66,7 @@ pub fn start_login(
         let _ = old.wait();
     }
 
-    let mut child = Command::new(&bin)
+    let mut child = crate::detect::command(&bin)
         .args(["auth", "login", "--claudeai"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

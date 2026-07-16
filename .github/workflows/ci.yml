@@ -39,9 +39,9 @@ jobs:
       - name: Rust 테스트
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
-      # 실제 인스톨러를 내려받아 격리 HOME에 무인 설치하는 E2E (macOS만, 네트워크 사용)
+      # 실제 인스톨러를 내려받아 격리 HOME에 무인 설치하는 E2E (네트워크 사용)
+      # Windows는 일회용 러너라 레지스트리 PATH 반영까지 실제로 검증한다 (M0 가정 4)
       - name: 설치 파이프라인 격리 E2E
-        if: runner.os == 'macOS'
         run: cargo test --manifest-path src-tauri/Cargo.toml isolated_install -- --ignored --nocapture
 
   # Windows 번들 빌드 검증 — 로컬(맥)에서 못 하는 것을 CI가 대신한다 (M0 가정 4)

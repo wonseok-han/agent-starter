@@ -319,16 +319,28 @@ function InstallStep({
 
   return (
     <div className="center">
-      <h2>클로드 코드를 설치할게요</h2>
+      <h2>{error ? "설치가 잘 안 됐어요" : "클로드 코드를 설치할게요"}</h2>
       <p className="muted">
-        버튼 하나만 누르면 다운로드부터 터미널 설정까지 알아서 진행돼요.
-        <br />
-        공식 설치 파일(claude.ai)만 사용하니 안심하세요.
+        {error ? (
+          "괜찮아요, 다시 시도하면 돼요. 보통은 인터넷 연결 문제예요."
+        ) : (
+          <>
+            버튼 하나만 누르면 다운로드부터 터미널 설정까지 알아서 진행돼요.
+            <br />
+            공식 설치 파일(claude.ai)만 사용하니 안심하세요.
+          </>
+        )}
       </p>
       {error && <p className="error">{error}</p>}
       <button className="primary" onClick={start}>
         {error ? "다시 설치하기" : "설치 시작하기"}
       </button>
+      {error && log.length > 0 && (
+        <details className="log">
+          <summary>무슨 일이 있었는지 보기</summary>
+          <pre>{log.join("\n")}</pre>
+        </details>
+      )}
     </div>
   );
 }
@@ -357,17 +369,21 @@ function LoginStep({ onNext }: { onNext: () => void }) {
     check();
   }, []);
 
-  async function start() {
-    setError(null);
+  async function openSession() {
     setUrl(null);
-    setCode("");
-    setMode("waiting");
     const onEvent = new Channel<LoginEvent>();
     onEvent.onmessage = (e) => {
       if (e.type === "url") setUrl(e.url);
     };
+    await invoke("start_login", { onEvent });
+  }
+
+  async function start() {
+    setError(null);
+    setCode("");
+    setMode("waiting");
     try {
-      await invoke("start_login", { onEvent });
+      await openSession();
     } catch (err) {
       setError(String(err));
       setMode("idle");
@@ -383,9 +399,19 @@ function LoginStep({ onNext }: { onNext: () => void }) {
       await invoke("submit_login_code", { onEvent, code });
       await check();
       setMode("idle");
-    } catch (err) {
-      setError(String(err));
-      setMode("waiting");
+    } catch {
+      // 코드가 틀리면 이전 세션은 끝났으므로 새 세션을 열어 새 코드를 받게 한다
+      setCode("");
+      try {
+        await openSession();
+        setError(
+          "코드가 맞지 않았어요. 브라우저 창이 다시 열리니 새로 로그인하고, 새 코드를 붙여넣어 주세요.",
+        );
+        setMode("waiting");
+      } catch (err2) {
+        setError(String(err2));
+        setMode("idle");
+      }
     }
   }
 

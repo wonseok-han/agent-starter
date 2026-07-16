@@ -4,7 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use tauri::ipc::Channel;
 
-const INSTALL_SCRIPT_URL: &str = "https://claude.ai/install.sh";
+const SCRIPT_URL_UNIX: &str = "https://claude.ai/install.sh";
+const SCRIPT_URL_WINDOWS: &str = "https://claude.ai/install.ps1";
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -18,7 +19,7 @@ pub enum InstallEvent {
 pub struct InstallResult {
     pub version: String,
     pub path: String,
-    /// PATH 설정을 추가한 프로파일 파일 (이미 설정돼 있었으면 None)
+    /// PATH 설정을 추가한 위치 (이미 설정돼 있었으면 None)
     pub profile_updated: Option<String>,
 }
 
@@ -46,19 +47,21 @@ pub fn run_install(
     home: &Path,
     emit: &(dyn Fn(InstallEvent) + Sync),
 ) -> Result<InstallResult, String> {
-    if !cfg!(target_os = "macos") {
-        return Err("아직 macOS에서만 설치를 지원해요. Windows는 준비 중이에요.".into());
-    }
     let phase = |name: &str| emit(InstallEvent::Phase { name: name.into() });
 
-    // 1. 공식 설치 스크립트 다운로드
+    // 1. 공식 설치 스크립트 다운로드 (curl은 macOS·Windows 10+ 모두 기본 탑재)
     phase("download");
     let script_dir = home.join(".claude");
     std::fs::create_dir_all(&script_dir)
         .map_err(|e| format!("설치 준비 폴더를 만들지 못했어요: {e}"))?;
-    let script = script_dir.join("agent-starter-install.sh");
-    let status = Command::new("/usr/bin/curl")
-        .args(["-fsSL", INSTALL_SCRIPT_URL, "-o"])
+    let (url, script_name) = if cfg!(windows) {
+        (SCRIPT_URL_WINDOWS, "agent-starter-install.ps1")
+    } else {
+        (SCRIPT_URL_UNIX, "agent-starter-install.sh")
+    };
+    let script = script_dir.join(script_name);
+    let status = crate::detect::command(&curl_path())
+        .args(["-fsSL", url, "-o"])
         .arg(&script)
         .status()
         .map_err(|e| format!("다운로드 도구를 실행하지 못했어요: {e}"))?;
@@ -68,9 +71,7 @@ pub fn run_install(
 
     // 2. 인스톨러 무인 실행 — 출력을 실시간으로 흘려보냄
     phase("install");
-    let mut child = Command::new("/bin/bash")
-        .arg(&script)
-        .env("HOME", home)
+    let mut child = installer_command(&script, home)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -99,21 +100,24 @@ pub fn run_install(
     let _ = std::fs::remove_file(&script);
     if !status.success() {
         return Err(format!(
-            "설치가 중간에 멈췄어요 (코드 {}). 다시 시도해 주세요.",
+            "설치가 중간에 멈췄어요 (코드 {}). 인터넷 연결을 확인하고 다시 시도해 주세요.",
             status.code().unwrap_or(-1)
         ));
     }
 
-    // 3. 터미널 PATH 설정 — 인스톨러는 안내문만 출력하므로 직접 반영 (docs/architecture.md §5)
+    // 3. 터미널 PATH 설정 — 인스톨러가 안 해 주는 경우를 대비해 직접 반영 (docs §5)
     phase("path");
     let profile_updated = ensure_path(home)?;
 
     // 4. 절대경로로 설치 검증 — PATH에 의존하지 않음
     phase("verify");
-    let bin = home.join(".local/bin/claude");
-    let out = Command::new(&bin)
+    let bin = home
+        .join(".local")
+        .join("bin")
+        .join(crate::detect::exe("claude"));
+    let out = crate::detect::command(&bin)
         .arg("--version")
-        .env("HOME", home)
+        .env(home_env_var(), home)
         .output()
         .map_err(|e| format!("설치된 클로드 코드를 실행하지 못했어요: {e}"))?;
     let version = String::from_utf8_lossy(&out.stdout).trim().to_string();
@@ -128,8 +132,52 @@ pub fn run_install(
     })
 }
 
-/// ~/.local/bin이 셸 프로파일에 없으면 ~/.zshrc에 추가한다.
-/// 반환값: 수정한 파일 경로 (이미 설정돼 있으면 None)
+fn home_env_var() -> &'static str {
+    if cfg!(windows) { "USERPROFILE" } else { "HOME" }
+}
+
+fn curl_path() -> PathBuf {
+    if cfg!(windows) {
+        system_root().join("System32").join("curl.exe")
+    } else {
+        PathBuf::from("/usr/bin/curl")
+    }
+}
+
+#[cfg(windows)]
+fn powershell_path() -> PathBuf {
+    system_root()
+        .join("System32")
+        .join("WindowsPowerShell")
+        .join("v1.0")
+        .join("powershell.exe")
+}
+
+fn system_root() -> PathBuf {
+    std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("C:\\Windows"))
+}
+
+#[cfg(not(windows))]
+fn installer_command(script: &Path, home: &Path) -> Command {
+    let mut c = crate::detect::command(Path::new("/bin/bash"));
+    c.arg(script).env("HOME", home);
+    c
+}
+
+#[cfg(windows)]
+fn installer_command(script: &Path, home: &Path) -> Command {
+    let mut c = crate::detect::command(&powershell_path());
+    c.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
+        .arg(script)
+        .env("USERPROFILE", home);
+    c
+}
+
+/// macOS: ~/.local/bin이 셸 프로파일에 없으면 ~/.zshrc에 추가한다.
+/// 반환값: 수정한 위치 (이미 설정돼 있으면 None)
+#[cfg(not(windows))]
 fn ensure_path(home: &Path) -> Result<Option<String>, String> {
     let profiles = [".zshrc", ".zprofile", ".bashrc", ".bash_profile"];
     for name in profiles {
@@ -153,12 +201,41 @@ fn ensure_path(home: &Path) -> Result<Option<String>, String> {
     Ok(Some(zshrc.display().to_string()))
 }
 
+/// Windows: 사용자 PATH(HKCU\Environment)에 %USERPROFILE%\.local\bin을 추가한다.
+/// SetEnvironmentVariable('User')는 WM_SETTINGCHANGE 브로드캐스트까지 수행하므로
+/// 새로 여는 터미널에 바로 반영된다.
+#[cfg(windows)]
+fn ensure_path(home: &Path) -> Result<Option<String>, String> {
+    let bin_dir = home.join(".local").join("bin");
+    let ps = format!(
+        "$dir = '{}'; \
+         $p = [Environment]::GetEnvironmentVariable('Path','User'); \
+         if (($p -split ';') -contains $dir) {{ 'exists' }} \
+         else {{ [Environment]::SetEnvironmentVariable('Path', ($dir + ';' + $p), 'User'); 'updated' }}",
+        bin_dir.display()
+    );
+    let out = crate::detect::command(&powershell_path())
+        .args(["-NoProfile", "-Command", &ps])
+        .output()
+        .map_err(|e| format!("터미널 설정 도구를 실행하지 못했어요: {e}"))?;
+    if !out.status.success() {
+        return Err("터미널 설정을 저장하지 못했어요.".into());
+    }
+    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    Ok(if text == "updated" {
+        Some("사용자 PATH (레지스트리)".into())
+    } else {
+        None
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
 
     /// 네트워크로 실제 인스톨러를 내려받아 임시 HOME에 격리 설치한다.
     /// 실행: cargo test -- --ignored --nocapture
+    /// (Windows에서는 사용자 PATH 레지스트리에 임시 경로가 남는다 — CI 일회용 러너 전제)
     #[test]
     #[ignore = "network + ~1분 소요"]
     fn isolated_install_end_to_end() {
@@ -174,11 +251,27 @@ mod tests {
         let report = result.expect("install should succeed");
         println!("{report:#?}");
         assert!(report.version.contains("Claude Code"));
-        assert!(home.join(".local/bin/claude").is_file());
-        // 빈 HOME에는 프로파일이 없으므로 .zshrc가 생성돼야 함
-        let zshrc = std::fs::read_to_string(home.join(".zshrc")).unwrap();
-        assert!(zshrc.contains(".local/bin"));
-        assert_eq!(report.profile_updated, Some(home.join(".zshrc").display().to_string()));
+        let bin = home
+            .join(".local")
+            .join("bin")
+            .join(crate::detect::exe("claude"));
+        assert!(bin.is_file());
+
+        #[cfg(not(windows))]
+        {
+            // 빈 HOME에는 프로파일이 없으므로 .zshrc가 생성돼야 함
+            let zshrc = std::fs::read_to_string(home.join(".zshrc")).unwrap();
+            assert!(zshrc.contains(".local/bin"));
+            assert_eq!(
+                report.profile_updated,
+                Some(home.join(".zshrc").display().to_string())
+            );
+        }
+        #[cfg(windows)]
+        {
+            // 인스톨러가 PATH를 직접 처리하는지는 이 값으로 관찰한다 (None이면 인스톨러가 이미 등록한 것)
+            println!("windows profile_updated = {:?}", report.profile_updated);
+        }
 
         std::fs::remove_dir_all(&home).ok();
     }
