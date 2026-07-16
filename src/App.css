@@ -1,19 +1,29 @@
+/* ── 정돈된 프로덕트 테마 ───────────────────────────────
+   중성 배경 + 흰 카드 + 코랄 액센트 하나.
+   개성은 질감이 아니라 타이포그래피 위계와 간격에서 나온다. */
+
 :root {
-  --bg: #f4f6f9;
+  --bg: #f7f7f5;
   --panel: #ffffff;
-  --text: #1c2430;
-  --muted: #66707d;
-  --line: #e3e8ee;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --ok: #16a34a;
-  --error: #dc2626;
+  --ink: #1a1c1e;
+  --muted: #6e747c;
+  --line: #e7e7e3;
+  --accent: #e8593a;
+  --accent-deep: #d14a2c;
+  --accent-soft: #fdece7;
+  --ok: #2e9e5b;
+  --ok-soft: #e7f4ec;
+  --warn: #e8a33d;
+  --warn-soft: #fdf4e5;
+  --danger: #d64530;
+  --shadow:
+    0 1px 2px rgba(20, 22, 25, 0.04),
+    0 10px 32px rgba(20, 22, 25, 0.06);
 
   font-family:
-    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard,
-    "Malgun Gothic", "Segoe UI", sans-serif;
-  color: var(--text);
-  background-color: var(--bg);
+    "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+  color: var(--ink);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -25,89 +35,175 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+  min-height: 100vh;
 }
 
 .app {
-  max-width: 680px;
+  max-width: 640px;
   margin: 0 auto;
-  padding: 40px 24px 56px;
+  padding: 42px 28px 56px;
+}
+
+/* ── 헤더 ─────────────────────────────────────────── */
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  text-transform: uppercase;
 }
 
 .header h1 {
   margin: 0 0 6px;
   font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
-.header p {
+.tagline {
   margin: 0;
   color: var(--muted);
+  font-size: 15px;
+  letter-spacing: -0.01em;
 }
 
-/* 단계 표시 */
+/* ── 단계 레일 ────────────────────────────────────── */
+
 .steps {
   display: flex;
-  gap: 4px;
   list-style: none;
   padding: 0;
-  margin: 28px 0 20px;
+  margin: 30px 0 18px;
 }
 
 .steps li {
+  position: relative;
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--muted);
-  padding: 8px 6px;
-  border-bottom: 3px solid var(--line);
+  letter-spacing: -0.01em;
 }
 
-.steps li.active {
-  color: var(--primary);
-  font-weight: 600;
-  border-bottom-color: var(--primary);
+.steps li + li::before {
+  content: "";
+  position: absolute;
+  top: 13px;
+  right: calc(50% + 18px);
+  width: calc(100% - 36px);
+  height: 1.5px;
+  background: var(--line);
 }
 
-.steps li.done {
-  color: var(--ok);
-  border-bottom-color: var(--ok);
+.steps li.done + li::before {
+  background: var(--ok);
+  opacity: 0.4;
 }
 
 .step-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
-  background: var(--line);
+  background: var(--panel);
+  border: 1.5px solid var(--line);
   font-size: 12px;
-  flex-shrink: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+.steps li.active {
+  color: var(--ink);
+  font-weight: 700;
 }
 
 .steps li.active .step-dot {
-  background: var(--primary);
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.steps li.done {
+  color: var(--ok);
 }
 
 .steps li.done .step-dot {
   background: var(--ok);
+  border-color: var(--ok);
   color: #fff;
 }
 
-/* 본문 패널 */
+/* ── 본문 패널 ────────────────────────────────────── */
+
 .panel {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 32px;
-  min-height: 320px;
+  border-radius: 18px;
+  padding: 34px 32px;
+  min-height: 336px;
+  box-shadow: var(--shadow);
+  animation: panel-in 0.3s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.panel > div > * {
+  animation: rise 0.35s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+.panel > div > *:nth-child(2) {
+  animation-delay: 0.04s;
+}
+.panel > div > *:nth-child(3) {
+  animation-delay: 0.08s;
+}
+.panel > div > *:nth-child(4) {
+  animation-delay: 0.12s;
+}
+.panel > div > *:nth-child(5) {
+  animation-delay: 0.16s;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .panel h2 {
-  margin: 0 0 12px;
-  font-size: 20px;
+  margin: 0 0 10px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .center {
@@ -116,77 +212,110 @@ body {
   align-items: center;
   justify-content: center;
   text-align: center;
-  min-height: 256px;
+  min-height: 268px;
 }
 
 .muted {
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
 }
 
 .error {
-  color: var(--error);
-  font-size: 14px;
+  color: var(--danger);
+  font-size: 13.5px;
+  background: rgba(214, 69, 48, 0.06);
+  border: 1px solid rgba(214, 69, 48, 0.16);
+  border-radius: 10px;
+  padding: 10px 14px;
+  max-width: 420px;
+  line-height: 1.6;
 }
 
-/* 진단 결과 */
+/* ── 진단 결과 카드 ───────────────────────────────── */
+
 .results {
   list-style: none;
   padding: 0;
   margin: 20px 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .result {
   display: flex;
   gap: 14px;
   align-items: flex-start;
-  padding: 16px;
+  padding: 15px 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 13px;
 }
 
 .result.todo {
-  border-color: #f59e0b55;
-  background: #fffbeb;
+  border-color: rgba(232, 163, 61, 0.5);
+  background: var(--warn-soft);
 }
 
 .result-icon {
-  font-size: 20px;
-  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 17px;
+  flex-shrink: 0;
+}
+
+.result.ok .result-icon {
+  background: var(--ok-soft);
+}
+
+.result.todo .result-icon {
+  background: rgba(232, 163, 61, 0.14);
 }
 
 .result strong {
-  font-size: 15px;
+  font-size: 14.5px;
+  letter-spacing: -0.01em;
 }
 
-/* 설치 진행 단계 */
+.result .muted {
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+/* ── 설치 진행 ────────────────────────────────────── */
+
 .phases {
   list-style: none;
   padding: 0;
-  margin: 20px 0;
+  margin: 20px 0 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .phases li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
+  gap: 12px;
+  padding: 12px 15px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 11px;
   color: var(--muted);
-  font-size: 15px;
+  font-size: 14px;
+  transition:
+    border-color 0.2s,
+    color 0.2s;
 }
 
 .phases li.active {
-  color: var(--text);
-  border-color: var(--primary);
+  color: var(--ink);
+  border-color: var(--accent);
   font-weight: 600;
 }
 
@@ -198,16 +327,16 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--line);
-  font-size: 13px;
+  font-size: 11px;
   flex-shrink: 0;
 }
 
 .phases li.active .phase-mark {
-  background: var(--primary);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -218,13 +347,14 @@ body {
 
 .phase-detail {
   margin-left: auto;
-  font-size: 13px;
-  color: var(--primary);
-  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--accent-deep);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-track {
-  height: 8px;
+  height: 6px;
   background: var(--line);
   border-radius: 4px;
   overflow: hidden;
@@ -234,8 +364,8 @@ body {
 .progress-fill {
   height: 100%;
   width: 40%;
-  background: var(--primary);
   border-radius: 4px;
+  background: var(--accent);
   animation: progress-slide 1.4s ease-in-out infinite;
 }
 
@@ -260,68 +390,91 @@ body {
 
 .log pre {
   margin: 10px 0 0;
-  padding: 12px;
+  padding: 12px 14px;
   background: var(--bg);
-  border-radius: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   max-height: 180px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  text-align: left;
+  font-size: 12px;
 }
 
-/* 로그인 단계 */
+/* ── 로그인 ───────────────────────────────────────── */
+
 .guide {
   margin: 16px 0;
   padding-left: 22px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+}
+
+.guide li::marker {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .code-row {
   display: flex;
   gap: 10px;
   margin-top: 16px;
+  width: 100%;
+  max-width: 440px;
 }
 
 .code-input {
   flex: 1;
+  min-width: 0;
   font: inherit;
+  font-size: 14.5px;
   padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: 11px;
   background: var(--panel);
-  color: var(--text);
+  color: var(--ink);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .code-input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 button.link {
   background: none;
   border: none;
   padding: 0;
-  color: var(--primary);
+  color: var(--accent-deep);
   text-decoration: underline;
+  text-underline-offset: 3px;
   font-size: inherit;
-  font-weight: 500;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-/* 첫 프로젝트 · 졸업식 */
+/* ── 첫 프로젝트 · 졸업식 ─────────────────────────── */
+
 .path-box {
   display: block;
   margin: 16px 0;
-  padding: 12px 16px;
+  padding: 11px 16px;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  border-radius: 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
   word-break: break-all;
+  max-width: 460px;
 }
 
 .chat-bubble {
@@ -332,51 +485,116 @@ button.link {
   background: var(--bg);
   border: 1px solid var(--line);
   border-radius: 14px;
+  border-bottom-left-radius: 4px;
   text-align: left;
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 14.5px;
+  line-height: 1.75;
   white-space: pre-wrap;
 }
 
 .chat-name {
   display: block;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--primary);
-  margin-bottom: 6px;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 5px;
 }
 
-/* 버튼 */
+/* 졸업 축하 색종이 */
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.confetti i {
+  position: absolute;
+  top: -12px;
+  width: 7px;
+  height: 11px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: confetti-fall 2.6s ease-in 0.15s forwards;
+}
+
+.confetti i:nth-child(3n) {
+  background: var(--accent);
+}
+.confetti i:nth-child(3n + 1) {
+  background: var(--warn);
+}
+.confetti i:nth-child(3n + 2) {
+  background: var(--ok);
+}
+
+.confetti i:nth-child(1) { left: 6%; animation-delay: 0.1s; }
+.confetti i:nth-child(2) { left: 14%; animation-delay: 0.5s; }
+.confetti i:nth-child(3) { left: 23%; animation-delay: 0.25s; }
+.confetti i:nth-child(4) { left: 31%; animation-delay: 0.65s; }
+.confetti i:nth-child(5) { left: 40%; animation-delay: 0.15s; }
+.confetti i:nth-child(6) { left: 48%; animation-delay: 0.55s; }
+.confetti i:nth-child(7) { left: 57%; animation-delay: 0.3s; }
+.confetti i:nth-child(8) { left: 65%; animation-delay: 0.7s; }
+.confetti i:nth-child(9) { left: 74%; animation-delay: 0.2s; }
+.confetti i:nth-child(10) { left: 82%; animation-delay: 0.6s; }
+.confetti i:nth-child(11) { left: 90%; animation-delay: 0.4s; }
+.confetti i:nth-child(12) { left: 96%; animation-delay: 0.8s; }
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(420px) rotate(480deg);
+  }
+}
+
+/* ── 버튼 ─────────────────────────────────────────── */
+
 button {
   font: inherit;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  padding: 12px 22px;
-  font-size: 15px;
-  font-weight: 600;
+  border-radius: 11px;
+  border: 1.5px solid transparent;
+  padding: 12px 24px;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background-color 0.15s;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: default;
 }
 
 button.primary {
-  background: var(--primary);
+  background: var(--accent);
   color: #fff;
 }
 
 button.primary:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: var(--accent-deep);
+  transform: translateY(-1px);
+}
+
+button.primary:active:not(:disabled) {
+  transform: none;
 }
 
 button.ghost {
   background: transparent;
   border-color: var(--line);
-  color: var(--text);
-  font-weight: 500;
+  color: var(--ink);
+  font-weight: 600;
 }
 
 button.ghost:hover:not(:disabled) {
@@ -387,22 +605,58 @@ button.ghost:hover:not(:disabled) {
   margin-top: 20px;
 }
 
+.center .error {
+  margin: 12px 0 0;
+}
+
 .actions {
   display: flex;
   justify-content: space-between;
   margin-top: 24px;
 }
 
+/* ── 접근성: 모션 최소화 존중 ─────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .panel > div > *,
+  .confetti i,
+  .progress-fill {
+    animation: none !important;
+  }
+  .confetti {
+    display: none;
+  }
+}
+
+/* ── 다크 모드: 중성 차콜 ─────────────────────────── */
+
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #14181f;
-    --panel: #1c222c;
-    --text: #eef1f5;
-    --muted: #97a1ad;
-    --line: #2c3441;
+    --bg: #131416;
+    --panel: #1c1e21;
+    --ink: #f2f3f4;
+    --muted: #9ba1a8;
+    --line: #2b2e32;
+    --accent: #ff7a59;
+    --accent-deep: #ff8d70;
+    --accent-soft: rgba(255, 122, 89, 0.14);
+    --ok: #57b97e;
+    --ok-soft: rgba(87, 185, 126, 0.13);
+    --warn: #e0a545;
+    --warn-soft: rgba(224, 165, 69, 0.1);
+    --danger: #f06a54;
+    --shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 12px 36px rgba(0, 0, 0, 0.35);
   }
 
   .result.todo {
-    background: #2a2415;
+    background: var(--warn-soft);
+    border-color: rgba(224, 165, 69, 0.35);
+  }
+
+  button.primary {
+    color: #1c120e;
   }
 }

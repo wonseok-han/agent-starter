@@ -13,8 +13,11 @@
     "windows": [
       {
         "title": "Agent Starter",
-        "width": 800,
-        "height": 600
+        "width": 880,
+        "height": 700,
+        "minWidth": 740,
+        "minHeight": 580,
+        "center": true
       }
     ],
     "security": {

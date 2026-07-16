@@ -80,8 +80,11 @@ function App() {
   return (
     <div className="app">
       <header className="header">
+        <p className="eyebrow">코딩 에이전트 시작 도우미</p>
         <h1>Agent Starter</h1>
-        <p>클로드 코드를 쓸 수 있는 상태까지, 차근차근 같이 갈게요.</p>
+        <p className="tagline">
+          클로드 코드를 쓸 수 있는 상태까지, 차근차근 같이 갈게요.
+        </p>
       </header>
 
       <ol className="steps">
@@ -96,7 +99,7 @@ function App() {
         ))}
       </ol>
 
-      <main className="panel">
+      <main className="panel" key={step}>
         {step === 0 ? (
           <DiagnosisStep
             report={report}
@@ -656,6 +659,11 @@ function GraduationStep({ project }: { project: ProjectInfo | null }) {
   if (reply) {
     return (
       <div className="center">
+        <div className="confetti" aria-hidden="true">
+          {Array.from({ length: 12 }, (_, i) => (
+            <i key={i} />
+          ))}
+        </div>
         <h2>축하해요, 모든 준비가 끝났어요 🎓</h2>
         <div className="chat-bubble">
           <span className="chat-name">클로드</span>
