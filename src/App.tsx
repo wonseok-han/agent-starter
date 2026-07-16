@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 interface ToolInfo {
@@ -56,6 +56,11 @@ const PLAN_LABELS: Record<string, string> = {
   enterprise: "Enterprise 요금제",
 };
 
+interface ProjectInfo {
+  path: string;
+  created: boolean;
+}
+
 function osLabel(report: EnvironmentReport): string {
   if (report.os === "macos") {
     const chip = report.arch === "aarch64" ? "Apple Silicon" : "Intel";
@@ -69,6 +74,7 @@ function osLabel(report: EnvironmentReport): string {
 function App() {
   const [step, setStep] = useState(0);
   const [report, setReport] = useState<EnvironmentReport | null>(null);
+  const [project, setProject] = useState<ProjectInfo | null>(null);
 
   return (
     <div className="app">
@@ -100,8 +106,14 @@ function App() {
           <InstallStep report={report} onNext={() => setStep(2)} />
         ) : step === 2 ? (
           <LoginStep onNext={() => setStep(3)} />
+        ) : step === 3 ? (
+          <ProjectStep
+            project={project}
+            onProject={setProject}
+            onNext={() => setStep(4)}
+          />
         ) : (
-          <PlaceholderStep name={STEPS[step]} onBack={() => setStep(0)} />
+          <GraduationStep project={project} />
         )}
       </main>
     </div>
@@ -475,21 +487,144 @@ function LoginStep({ onNext }: { onNext: () => void }) {
   );
 }
 
-function PlaceholderStep({
-  name,
-  onBack,
+function ProjectStep({
+  project,
+  onProject,
+  onNext,
 }: {
-  name: string;
-  onBack: () => void;
+  project: ProjectInfo | null;
+  onProject: (p: ProjectInfo) => void;
+  onNext: () => void;
 }) {
+  const [name, setName] = useState("내-첫-프로젝트");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function create() {
+    setCreating(true);
+    setError(null);
+    try {
+      onProject(await invoke<ProjectInfo>("create_first_project", { name }));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  if (project) {
+    return (
+      <div className="center">
+        <h2>폴더가 준비됐어요 📁</h2>
+        <p className="muted">
+          {project.created
+            ? "문서 폴더 안에 새 폴더를 만들었어요."
+            : "이미 있던 폴더를 그대로 쓸게요."}
+          <br />
+          앞으로 클로드와의 작업은 이 폴더 안에서만 이루어져요.
+        </p>
+        <code className="path-box">{project.path}</code>
+        <button className="primary" onClick={onNext}>
+          다음: 첫 인사 나누기
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="center">
-      <h2>{name} 단계는 준비 중이에요 🚧</h2>
+      <h2>작업할 폴더를 만들게요</h2>
       <p className="muted">
-        M0 기술 검증이 진행되는 동안 순서대로 열릴 예정이에요.
+        클로드가 일할 전용 폴더예요. 문서 폴더 안에 만들어지고,
+        <br />
+        다른 파일은 건드리지 않으니 안전해요.
       </p>
-      <button className="ghost" onClick={onBack}>
-        진단으로 돌아가기
+      {error && <p className="error">{error}</p>}
+      <div className="code-row">
+        <input
+          className="code-input"
+          value={name}
+          onChange={(e) => setName(e.currentTarget.value)}
+          onKeyDown={(e) => e.key === "Enter" && create()}
+          placeholder="폴더 이름"
+        />
+        <button
+          className="primary"
+          onClick={create}
+          disabled={creating || !name.trim()}
+        >
+          {creating ? "만드는 중…" : "폴더 만들기"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function GraduationStep({ project }: { project: ProjectInfo | null }) {
+  const [running, setRunning] = useState(false);
+  const [reply, setReply] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!project) {
+    return (
+      <div className="center">
+        <h2>먼저 이전 단계에서 폴더를 만들어 주세요</h2>
+      </div>
+    );
+  }
+
+  async function chat() {
+    setRunning(true);
+    setError(null);
+    try {
+      setReply(
+        await invoke<string>("run_first_chat", { projectPath: project!.path }),
+      );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  if (reply) {
+    return (
+      <div className="center">
+        <h2>축하해요, 모든 준비가 끝났어요 🎓</h2>
+        <div className="chat-bubble">
+          <span className="chat-name">클로드</span>
+          {reply}
+        </div>
+        <p className="muted">
+          방금 클로드와 첫 대화를 나눴어요. 이제 진짜예요.
+          <br />
+          아래 버튼으로 폴더를 열어 두면, 다음에 쓸 때 찾기 쉬워요.
+        </p>
+        <button className="primary" onClick={() => openPath(project.path)}>
+          내 프로젝트 폴더 열기
+        </button>
+      </div>
+    );
+  }
+
+  if (running) {
+    return (
+      <div className="center">
+        <h2>클로드가 대답을 쓰고 있어요…</h2>
+        <p className="muted">첫 만남이라 몇 초 정도 걸려요.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="center">
+      <h2>마지막 단계예요 — 첫 인사를 나눠 봐요</h2>
+      <p className="muted">
+        버튼을 누르면 클로드에게 인사를 건네고, 대답이 여기 표시돼요.
+      </p>
+      {error && <p className="error">{error}</p>}
+      <button className="primary" onClick={chat}>
+        클로드에게 인사 보내기 👋
       </button>
     </div>
   );
