@@ -47,6 +47,15 @@ pub fn detect() -> EnvironmentReport {
     }
 }
 
+/// 설치된 claude 실행 파일의 절대경로 (없으면 None)
+pub(crate) fn claude_bin() -> Option<PathBuf> {
+    let home = home_dir();
+    let shell_dirs = shell_path_dirs();
+    claude_candidates(&home, &shell_dirs)
+        .into_iter()
+        .find(|p| p.is_file())
+}
+
 pub(crate) fn home_dir() -> PathBuf {
     let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
     std::env::var_os(var).map(PathBuf::from).unwrap_or_default()

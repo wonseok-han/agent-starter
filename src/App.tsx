@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import "./App.css";
 
 interface ToolInfo {
@@ -35,6 +36,25 @@ const INSTALL_PHASES = [
   { id: "path", label: "터미널 설정 정리하기" },
   { id: "verify", label: "잘 됐는지 확인하기" },
 ] as const;
+
+interface LoginStatus {
+  loggedIn: boolean;
+  authMethod: string | null;
+  email: string | null;
+  subscriptionType: string | null;
+}
+
+type LoginEvent =
+  | { type: "url"; url: string }
+  | { type: "log"; line: string }
+  | { type: "exit"; success: boolean };
+
+const PLAN_LABELS: Record<string, string> = {
+  pro: "Pro 요금제",
+  max: "Max 요금제",
+  team: "Team 요금제",
+  enterprise: "Enterprise 요금제",
+};
 
 function osLabel(report: EnvironmentReport): string {
   if (report.os === "macos") {
@@ -78,6 +98,8 @@ function App() {
           />
         ) : step === 1 ? (
           <InstallStep report={report} onNext={() => setStep(2)} />
+        ) : step === 2 ? (
+          <LoginStep onNext={() => setStep(3)} />
         ) : (
           <PlaceholderStep name={STEPS[step]} onBack={() => setStep(0)} />
         )}
@@ -294,6 +316,160 @@ function InstallStep({
       {error && <p className="error">{error}</p>}
       <button className="primary" onClick={start}>
         {error ? "다시 설치하기" : "설치 시작하기"}
+      </button>
+    </div>
+  );
+}
+
+function LoginStep({ onNext }: { onNext: () => void }) {
+  const [status, setStatus] = useState<LoginStatus | null>(null);
+  const [checking, setChecking] = useState(true);
+  const [mode, setMode] = useState<"idle" | "waiting" | "verifying">("idle");
+  const [url, setUrl] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  async function check() {
+    setChecking(true);
+    try {
+      setStatus(await invoke<LoginStatus>("login_status"));
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  useEffect(() => {
+    check();
+  }, []);
+
+  async function start() {
+    setError(null);
+    setUrl(null);
+    setCode("");
+    setMode("waiting");
+    const onEvent = new Channel<LoginEvent>();
+    onEvent.onmessage = (e) => {
+      if (e.type === "url") setUrl(e.url);
+    };
+    try {
+      await invoke("start_login", { onEvent });
+    } catch (err) {
+      setError(String(err));
+      setMode("idle");
+    }
+  }
+
+  async function submit() {
+    if (!code.trim()) return;
+    setMode("verifying");
+    setError(null);
+    const onEvent = new Channel<LoginEvent>();
+    try {
+      await invoke("submit_login_code", { onEvent, code });
+      await check();
+      setMode("idle");
+    } catch (err) {
+      setError(String(err));
+      setMode("waiting");
+    }
+  }
+
+  async function cancel() {
+    await invoke("cancel_login").catch(() => {});
+    setMode("idle");
+    setUrl(null);
+  }
+
+  if (checking) {
+    return (
+      <div className="center">
+        <h2>로그인 상태를 확인하고 있어요…</h2>
+      </div>
+    );
+  }
+
+  if (status?.loggedIn) {
+    const plan = status.subscriptionType
+      ? (PLAN_LABELS[status.subscriptionType] ?? status.subscriptionType)
+      : null;
+    return (
+      <div className="center">
+        <h2>로그인되어 있어요 ✅</h2>
+        <p className="muted">
+          {status.email ?? "계정"}
+          {plan ? ` · ${plan}` : ""}
+          <br />
+          클로드 코드를 쓸 준비가 됐어요.
+        </p>
+        <button className="primary" onClick={onNext}>
+          다음: 첫 프로젝트 만들기
+        </button>
+      </div>
+    );
+  }
+
+  if (mode === "verifying") {
+    return (
+      <div className="center">
+        <h2>코드를 확인하고 있어요…</h2>
+        <p className="muted">잠시만 기다려 주세요.</p>
+      </div>
+    );
+  }
+
+  if (mode === "waiting") {
+    return (
+      <div>
+        <h2>브라우저에서 로그인해 주세요</h2>
+        <ol className="guide">
+          <li>방금 열린 브라우저 창에서 클로드 계정으로 로그인해요.</li>
+          <li>로그인이 끝나면 화면에 <strong>확인 코드</strong>가 나와요.</li>
+          <li>그 코드를 복사해서 아래 칸에 붙여넣어 주세요.</li>
+        </ol>
+        {url && (
+          <p className="muted">
+            브라우저가 안 열렸다면{" "}
+            <button className="link" onClick={() => openUrl(url)}>
+              여기를 눌러 주세요
+            </button>
+          </p>
+        )}
+        {error && <p className="error">{error}</p>}
+        <div className="code-row">
+          <input
+            className="code-input"
+            placeholder="확인 코드 붙여넣기"
+            value={code}
+            onChange={(e) => setCode(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+          <button className="primary" onClick={submit} disabled={!code.trim()}>
+            확인
+          </button>
+        </div>
+        <div className="actions">
+          <button className="ghost" onClick={cancel}>
+            처음부터 다시
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="center">
+      <h2>클로드 계정으로 로그인할게요</h2>
+      <p className="muted">
+        버튼을 누르면 브라우저가 열려요. 거기서 로그인하면 돼요.
+        <br />
+        비밀번호는 이 앱이 아니라 클로드 공식 사이트에만 입력해요.
+      </p>
+      {error && <p className="error">{error}</p>}
+      <button className="primary" onClick={start}>
+        브라우저로 로그인 시작
       </button>
     </div>
   );
