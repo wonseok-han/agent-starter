@@ -3,7 +3,7 @@
 > 여러 코딩 에이전트(Claude Code, Codex)가 **번갈아 작업**할 때 컨텍스트를 이어받기 위한 워크로그다.
 >
 > **세션 시작**: 아래 "핵심 결정·발견"과 "작업 규칙"을 읽고, 워크로그 맨 위 엔트리로 현재 상태를 파악한다.
-> **세션 종료**: 워크로그 맨 위에 새 엔트리를 추가한다(최신이 위). 재사용할 만한 새 결정·발견은 "핵심 결정·발견"에도 반영한다. **엔트리는 덮어쓰지 말고 계속 쌓는다.**
+> **세션 종료**: 워크로그 맨 위에 새 엔트리를 추가한다(최신이 위). 헤더는 `### YYYY-MM-DD · by <모델명>` 형식으로 **작업한 모델을 구체적으로** 적는다(예: `by Claude Opus 4.8`, `by GPT-5 Codex`). 한 날 여러 모델이 작업했으면 엔트리를 나눈다. 재사용할 만한 새 결정·발견은 "핵심 결정·발견"에도 반영한다. **엔트리는 덮어쓰지 말고 계속 쌓는다.**
 
 ---
 
@@ -41,14 +41,15 @@
 
 ## 워크로그 (최신이 위)
 
-### 2026-07-21 · Claude Code
+### 2026-07-21 · by Claude Opus 4.8
 
 **한 일**
-- 프로젝트명 변경: `agent-starter` → **Hello, Agent** (레포 rename `hello-agent`, 번들 `Hello Agent`, 식별자 `com.wonseokhan.helloagent`). 리모트 URL·CI 배지·내부 문자열까지 일괄 반영
-- CI에 `build-macos` 잡 추가 → macOS `.dmg` + Windows `.exe` 둘 다 Actions artifact로 생성 (그린 확인)
+- M2: 에이전트 추상화(`agent.rs`) + Codex 조기 편입, 요금제/로그인 방식 안내, 안전 프리셋(설정 파일 수준)
 - Codex 데스크톱 앱 번들 CLI 감지 추가 (`/Applications/Codex.app/...`)
 - 편집기(커서·VS Code) 감지 → "그 편집기로 폴더 열기" + **에이전트 확장 자동 설치**
 - 첫 프로젝트 기본 이름 `my-first-project`로, 졸업식 "다음에 이렇게" 안내를 파일(.md) 대신 앱 UI로 이동
+- 프로젝트명 변경: `agent-starter` → **Hello, Agent** (레포 rename `hello-agent`, 번들 `Hello Agent`, 식별자 `com.wonseokhan.helloagent`). 리모트 URL·CI 배지·내부 문자열까지 일괄 반영
+- CI에 `build-macos` 잡 추가 → macOS `.dmg` + Windows `.exe` 둘 다 Actions artifact로 생성 (그린 확인)
 - 이 워크로그(`docs/history.md`) 도입
 
 **다음 할 일**
@@ -59,14 +60,13 @@
 - [ ] M3 닥터 (에러 해석·자동 수정)
 - [ ] 정식 배포 — 코드 서명 결정, Intel용 universal 빌드, GitHub Release
 
-### 2026-07-16 · Claude Code
+### 2026-07-16 · by Claude Fable 5
 
 **한 일**
 - Tauri 2 + React 19 스캐폴드, 기술 설계 문서·다이어그램
 - M0 검증: 환경 감지 / 무인 설치(+PATH 반영, 격리 E2E) / 브라우저 로그인 — 4가지 가정 전부 통과, Electron 전환 불필요
 - M1 위저드 완성: 진단 → 설치 → 로그인 → 첫 프로젝트 → 졸업식(첫 대화)
 - CI 구축(macOS/Windows 테스트 + 격리 E2E + Windows 번들). PSModulePath 함정·로그인 자동 승인 등 실전 버그 수정
-- M2: 에이전트 추상화 + Codex 편입, 요금제/로그인 방식 안내, 안전 프리셋
 - UI 디자인 패스(Pretendard, 코랄 액센트). Windows 실기기 로그인 플로우 확인
 
 **다음 할 일** → 2026-07-21 엔트리로 이어짐
