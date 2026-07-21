@@ -45,6 +45,51 @@ impl Editor {
         }
     }
 
+    /// 확장 설치·폴더 열기에 쓰는 편집기 CLI 이름
+    fn cli_name(self) -> &'static str {
+        match self {
+            Editor::Cursor => "cursor",
+            Editor::VsCode => "code",
+        }
+    }
+
+    /// 편집기 CLI(`--install-extension` 지원)의 절대경로. 확장 자동 설치용.
+    fn cli_path(self, home: &Path) -> Option<PathBuf> {
+        #[cfg(target_os = "macos")]
+        {
+            let bin = format!("Contents/Resources/app/bin/{}", self.cli_name());
+            self.install_paths(home)
+                .into_iter()
+                .map(|app| app.join(&bin))
+                .find(|p| p.exists())
+        }
+        #[cfg(windows)]
+        {
+            let local = std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            let pf = std::env::var_os("ProgramFiles")
+                .map(PathBuf::from)
+                .unwrap_or_default();
+            let _ = home;
+            let cands: Vec<PathBuf> = match self {
+                Editor::Cursor => {
+                    vec![local.join(r"Programs\cursor\resources\app\bin\cursor.cmd")]
+                }
+                Editor::VsCode => vec![
+                    local.join(r"Programs\Microsoft VS Code\bin\code.cmd"),
+                    pf.join(r"Microsoft VS Code\bin\code.cmd"),
+                ],
+            };
+            cands.into_iter().find(|p| p.exists())
+        }
+        #[cfg(not(any(target_os = "macos", windows)))]
+        {
+            let _ = home;
+            None
+        }
+    }
+
     /// 설치 여부를 판단할 후보 경로들
     fn install_paths(self, home: &Path) -> Vec<PathBuf> {
         #[cfg(target_os = "macos")]
@@ -114,17 +159,53 @@ pub async fn detect_editors() -> Vec<EditorInfo> {
     .unwrap_or_default()
 }
 
-/// 설치된 편집기로 프로젝트 폴더를 연다.
+/// 설치된 편집기로 프로젝트 폴더를 연다. 먼저 선택한 에이전트의 확장을
+/// 자동 설치(이미 있으면 건너뜀)해 편집기 안에서 GUI로 바로 쓰게 한다.
 #[tauri::command]
-pub async fn open_in_editor(editor: String, path: String) -> Result<(), String> {
+pub async fn open_in_editor(
+    editor: String,
+    agent: String,
+    path: String,
+) -> Result<(), String> {
     let editor = Editor::from_id(&editor).ok_or("알 수 없는 편집기예요.")?;
-    tauri::async_runtime::spawn_blocking(move || open(editor, &path))
-        .await
-        .map_err(|e| e.to_string())?
+    let ext = crate::agent::Agent::from_id(&agent)?.extension_id();
+    tauri::async_runtime::spawn_blocking(move || {
+        let home = crate::detect::home_dir();
+        // 확장 설치는 부가 단계 — 실패해도 폴더 열기는 진행한다
+        if let Some(cli) = editor.cli_path(&home) {
+            let _ = ensure_extension(&cli, ext);
+        }
+        open_folder(editor, &path)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 편집기 CLI로 확장이 없으면 설치한다 (best-effort).
+fn ensure_extension(cli: &Path, ext: &str) -> Result<(), String> {
+    let listed = crate::detect::command(cli)
+        .arg("--list-extensions")
+        .output()
+        .map_err(|e| format!("확장 목록을 확인하지 못했어요: {e}"))?;
+    let installed = String::from_utf8_lossy(&listed.stdout)
+        .lines()
+        .any(|l| l.trim().eq_ignore_ascii_case(ext));
+    if installed {
+        return Ok(());
+    }
+    let status = crate::detect::command(cli)
+        .args(["--install-extension", ext, "--force"])
+        .status()
+        .map_err(|e| format!("확장을 설치하지 못했어요: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("확장 설치에 실패했어요.".into())
+    }
 }
 
 #[cfg(target_os = "macos")]
-fn open(editor: Editor, path: &str) -> Result<(), String> {
+fn open_folder(editor: Editor, path: &str) -> Result<(), String> {
     let status = std::process::Command::new("/usr/bin/open")
         .args(["-a", editor.mac_app_name()])
         .arg(path)
@@ -138,7 +219,7 @@ fn open(editor: Editor, path: &str) -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn open(editor: Editor, path: &str) -> Result<(), String> {
+fn open_folder(editor: Editor, path: &str) -> Result<(), String> {
     let home = crate::detect::home_dir();
     let exe = editor
         .installed_path(&home)
@@ -151,7 +232,7 @@ fn open(editor: Editor, path: &str) -> Result<(), String> {
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]
-fn open(_editor: Editor, _path: &str) -> Result<(), String> {
+fn open_folder(_editor: Editor, _path: &str) -> Result<(), String> {
     Err("이 운영체제에서는 편집기 열기를 지원하지 않아요.".into())
 }
 

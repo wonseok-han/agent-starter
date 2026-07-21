@@ -31,6 +31,14 @@ impl Agent {
         }
     }
 
+    /// VS Code / Cursor 마켓플레이스 확장 ID (편집기에서 GUI로 쓰게 해 줌)
+    pub fn extension_id(self) -> &'static str {
+        match self {
+            Agent::ClaudeCode => "anthropic.claude-code",
+            Agent::Codex => "openai.chatgpt",
+        }
+    }
+
     /// 알려진 설치 위치 후보 디렉터리 (셸 PATH 탐색 이전의 우선 후보)
     pub fn candidate_dirs(self, home: &Path) -> Vec<PathBuf> {
         let mut dirs = vec![home.join(".local/bin")];

@@ -787,6 +787,7 @@ function GraduationStep({
   const [reply, setReply] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editors, setEditors] = useState<EditorInfo[]>([]);
+  const [opening, setOpening] = useState<string | null>(null);
   const name = agentName(agent);
 
   useEffect(() => {
@@ -794,6 +795,17 @@ function GraduationStep({
       .then(setEditors)
       .catch(() => {});
   }, []);
+
+  async function openInEditor(id: string) {
+    setOpening(id);
+    try {
+      await invoke("open_in_editor", { editor: id, agent, path: project!.path });
+    } catch {
+      // 실패해도 조용히 — 사용자는 폴더 열기 버튼으로 대신할 수 있다
+    } finally {
+      setOpening(null);
+    }
+  }
 
   if (!project) {
     return (
@@ -847,22 +859,20 @@ function GraduationStep({
           {installed.length > 0 ? (
             <>
               <p>
-                코드를 직접 보고 만지려면, 편집기에서 이 폴더를 열어보세요.
-                이미 설치된 편집기가 있네요.
+                이미 설치된 편집기가 있네요. 아래를 누르면 그 편집기로 이 폴더를
+                열고, {name} 확장(AI 기능)도 자동으로 켜드려요.
               </p>
               <div className="editor-btns">
                 {installed.map((e) => (
                   <button
                     key={e.id}
                     className="ghost"
-                    onClick={() =>
-                      invoke("open_in_editor", {
-                        editor: e.id,
-                        path: project.path,
-                      }).catch(() => {})
-                    }
+                    disabled={opening !== null}
+                    onClick={() => openInEditor(e.id)}
                   >
-                    {e.name}로 이 폴더 열기
+                    {opening === e.id
+                      ? "편집기를 준비하는 중…"
+                      : `${e.name}로 이 폴더 열기`}
                   </button>
                 ))}
               </div>
