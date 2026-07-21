@@ -794,10 +794,20 @@ function GraduationStep({
   const [opening, setOpening] = useState<string | null>(null);
   const name = t(`agent.${agent}.name` as MessageKey);
 
+  async function refreshEditors() {
+    try {
+      setEditors(await invoke<EditorInfo[]>("detect_editors"));
+    } catch {
+      // 감지 실패는 무시 — 다음 확인 때 다시 시도한다
+    }
+  }
+
   useEffect(() => {
-    invoke<EditorInfo[]>("detect_editors")
-      .then(setEditors)
-      .catch(() => {});
+    refreshEditors();
+    // 사용자가 편집기를 설치하고 앱으로 돌아오면(창 포커스) 자동으로 다시 감지한다
+    window.addEventListener("focus", refreshEditors);
+    return () => window.removeEventListener("focus", refreshEditors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function openInEditor(id: string) {
@@ -894,6 +904,9 @@ function GraduationStep({
                   </button>
                 ))}
               </div>
+              <button className="link recheck" onClick={refreshEditors}>
+                {t("grad.editor.recheck")}
+              </button>
             </>
           )}
           <p className="hint">{t("grad.reopen")}</p>

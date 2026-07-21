@@ -119,6 +119,7 @@ export const ko = {
   "grad.editor.open": "{editor}로 이 폴더 열기",
   "grad.editor.none.desc": "코드를 직접 만져보고 싶어지면, 무료 편집기를 하나 설치해보세요. 둘 다 초보자가 많이 써요.",
   "grad.editor.get": "{editor} 받기",
+  "grad.editor.recheck": "설치를 마쳤으면 다시 확인",
   "grad.reopen": "이 앱은 언제든 다시 열어 새 프로젝트를 만들 수 있어요.",
   "grad.writing.title": "{name}가 대답을 쓰고 있어요…",
   "grad.writing.desc": "첫 만남이라 몇 초 정도 걸려요.",

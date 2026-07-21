@@ -120,6 +120,7 @@ export const en: Record<MessageKey, string> = {
   "grad.editor.open": "Open this folder in {editor}",
   "grad.editor.none.desc": "When you feel like touching the code yourself, install a free editor. Both are popular with beginners.",
   "grad.editor.get": "Get {editor}",
+  "grad.editor.recheck": "Done installing? Check again",
   "grad.reopen": "You can reopen this app anytime to start a new project.",
   "grad.writing.title": "{name} is writing a reply…",
   "grad.writing.desc": "It's your first meeting, so it takes a few seconds.",

@@ -691,6 +691,12 @@ button.link {
   font-size: 14px;
 }
 
+button.link.recheck {
+  display: block;
+  margin: 12px auto 0;
+  font-size: 13px;
+}
+
 /* 졸업 축하 색종이 */
 .confetti {
   position: absolute;
