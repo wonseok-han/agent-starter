@@ -222,4 +222,14 @@ mod tests {
         assert!(!report.os.is_empty());
         assert!(!report.arch.is_empty());
     }
+
+    /// 실기기에 Codex 데스크톱 앱이 설치돼 있으면 앱 번들 CLI를 감지해야 한다.
+    /// 실행: cargo test -- --ignored --nocapture
+    #[test]
+    #[ignore = "Codex.app 설치 필요"]
+    fn detect_codex_app_bundle() {
+        let report = super::detect(crate::agent::Agent::Codex);
+        println!("{report:#?}");
+        assert!(report.agent.is_some(), "codex를 감지하지 못했어요");
+    }
 }
