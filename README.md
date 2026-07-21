@@ -40,12 +40,22 @@ pnpm build                                      # 프론트엔드 빌드 검증 
 cargo test --manifest-path src-tauri/Cargo.toml # Rust 테스트
 ```
 
+프로젝트 소개 웹사이트는 데스크톱 앱과 분리된 `website/`에서 관리합니다.
+
+```bash
+cd website
+npm install
+npm run dev   # 웹사이트 개발 서버
+npm test      # 배포 빌드 + 렌더링 검증
+```
+
 - Rust 1.85+ 필요 (edition 2024)
 - 네트워크가 필요한 격리 설치 E2E 테스트는 `-- --ignored` 로 실행합니다 (CI에서 macOS·Windows 모두 검증)
 
 ## 문서
 
 - [기술 설계](docs/architecture.md) — 시스템 구성, 위저드 상태 머신, 에이전트 레시피, 플랫폼별 전략, 검증 현황
+- [소개 웹사이트](website/README.md) — 랜딩 페이지 개발·배포 구조
 - 설계 다이어그램은 `docs/diagrams/*.excalidraw`
 
 ## 상태
