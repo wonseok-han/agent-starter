@@ -1,5 +1,6 @@
 mod agent;
 mod detect;
+mod editor;
 mod install;
 mod login;
 mod project;
@@ -17,7 +18,9 @@ pub fn run() {
             login::submit_login_code,
             login::cancel_login,
             project::create_first_project,
-            project::run_first_chat
+            project::run_first_chat,
+            editor::detect_editors,
+            editor::open_in_editor
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

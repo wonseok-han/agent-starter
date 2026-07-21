@@ -631,23 +631,25 @@ button.link {
   font-weight: 800;
 }
 
-.next-guide ul {
-  margin: 10px 0 14px;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
+.next-guide p {
+  margin: 10px 0 12px;
   font-size: 13.5px;
   line-height: 1.65;
   color: var(--muted);
 }
 
-.next-guide ul b {
-  color: var(--ink);
-  font-weight: 700;
+.next-guide .hint {
+  margin: 12px 0 0;
+  font-size: 12.5px;
 }
 
-.next-guide button.ghost {
+.editor-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-btns button.ghost {
   width: 100%;
   padding: 11px 16px;
   font-size: 14px;

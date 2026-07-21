@@ -54,7 +54,7 @@ pub async fn create_first_project(
 }
 
 fn create(agent: Agent, name: Option<String>) -> Result<ProjectInfo, String> {
-    let name = sanitize_name(name.as_deref().unwrap_or("내-첫-프로젝트"));
+    let name = sanitize_name(name.as_deref().unwrap_or("my-first-project"));
     if name.is_empty() {
         return Err("폴더 이름에 쓸 수 있는 글자가 없어요. 다른 이름을 지어 주세요.".into());
     }

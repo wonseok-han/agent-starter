@@ -46,6 +46,13 @@ interface ProjectInfo {
   created: boolean;
 }
 
+interface EditorInfo {
+  id: string;
+  name: string;
+  url: string;
+  installed: boolean;
+}
+
 type AgentId = "claude-code" | "codex";
 
 const AGENTS: {
@@ -703,7 +710,7 @@ function ProjectStep({
   onProject: (p: ProjectInfo) => void;
   onNext: () => void;
 }) {
-  const [name, setName] = useState("내-첫-프로젝트");
+  const [name, setName] = useState("my-first-project");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -779,7 +786,14 @@ function GraduationStep({
   const [running, setRunning] = useState(false);
   const [reply, setReply] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editors, setEditors] = useState<EditorInfo[]>([]);
   const name = agentName(agent);
+
+  useEffect(() => {
+    invoke<EditorInfo[]>("detect_editors")
+      .then(setEditors)
+      .catch(() => {});
+  }, []);
 
   if (!project) {
     return (
@@ -788,6 +802,8 @@ function GraduationStep({
       </div>
     );
   }
+
+  const installed = editors.filter((e) => e.installed);
 
   async function chat() {
     setRunning(true);
@@ -828,19 +844,67 @@ function GraduationStep({
 
         <div className="next-guide">
           <strong>다음엔 이렇게 하면 돼요</strong>
-          <ul>
-            <li>
-              이 앱은 언제든 다시 열어서 새 프로젝트를 또 만들 수 있어요.
-            </li>
-            <li>
-              코드를 직접 만져보고 싶어지면, 무료 프로그램{" "}
-              <b>커서(Cursor)</b>를 써보세요. AI가 들어 있어 처음 하는
-              분께도 쉬워요.
-            </li>
-          </ul>
-          <button className="ghost" onClick={() => openUrl("https://cursor.com")}>
-            커서(Cursor) 구경하러 가기
-          </button>
+          {installed.length > 0 ? (
+            <>
+              <p>
+                코드를 직접 보고 만지려면, 편집기에서 이 폴더를 열어보세요.
+                이미 설치된 편집기가 있네요.
+              </p>
+              <div className="editor-btns">
+                {installed.map((e) => (
+                  <button
+                    key={e.id}
+                    className="ghost"
+                    onClick={() =>
+                      invoke("open_in_editor", {
+                        editor: e.id,
+                        path: project.path,
+                      }).catch(() => {})
+                    }
+                  >
+                    {e.name}로 이 폴더 열기
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                코드를 직접 만져보고 싶어지면, 무료 편집기를 하나 설치해보세요.
+                둘 다 초보자가 많이 써요.
+              </p>
+              <div className="editor-btns">
+                {(editors.length > 0
+                  ? editors
+                  : [
+                      {
+                        id: "cursor",
+                        name: "커서(Cursor)",
+                        url: "https://cursor.com",
+                        installed: false,
+                      },
+                      {
+                        id: "vscode",
+                        name: "VS Code",
+                        url: "https://code.visualstudio.com",
+                        installed: false,
+                      },
+                    ]
+                ).map((e) => (
+                  <button
+                    key={e.id}
+                    className="ghost"
+                    onClick={() => openUrl(e.url)}
+                  >
+                    {e.name} 받기
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <p className="hint">
+            이 앱은 언제든 다시 열어 새 프로젝트를 만들 수 있어요.
+          </p>
         </div>
       </div>
     );
