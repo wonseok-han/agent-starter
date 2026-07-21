@@ -615,6 +615,44 @@ button.link {
   margin-bottom: 5px;
 }
 
+.next-guide {
+  margin-top: 26px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  text-align: left;
+  max-width: 440px;
+  width: 100%;
+}
+
+.next-guide strong {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.next-guide ul {
+  margin: 10px 0 14px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.next-guide ul b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.next-guide button.ghost {
+  width: 100%;
+  padding: 11px 16px;
+  font-size: 14px;
+}
+
 /* 졸업 축하 색종이 */
 .confetti {
   position: absolute;

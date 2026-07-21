@@ -730,8 +730,7 @@ function ProjectStep({
             ? "문서 폴더 안에 새 폴더를 만들었어요."
             : "이미 있던 폴더를 그대로 쓸게요."}
           <br />
-          안전장치와 함께, 다음에 혼자 이어갈 수 있게 <strong>시작하기.md</strong>{" "}
-          안내 문서도 넣어뒀어요.
+          위험한 작업은 시작 전에 꼭 물어보도록 안전장치도 넣어뒀어요.
         </p>
         <code className="path-box">{project.path}</code>
         <button className="primary" onClick={onNext}>
@@ -822,12 +821,27 @@ function GraduationStep({
         </div>
         <p className="muted">
           방금 {name}와 첫 대화를 나눴어요. 이제 진짜예요.
-          <br />
-          아래 버튼으로 폴더를 열어 두면, 다음에 쓸 때 찾기 쉬워요.
         </p>
         <button className="primary" onClick={() => openPath(project.path)}>
           내 프로젝트 폴더 열기
         </button>
+
+        <div className="next-guide">
+          <strong>다음엔 이렇게 하면 돼요</strong>
+          <ul>
+            <li>
+              이 앱은 언제든 다시 열어서 새 프로젝트를 또 만들 수 있어요.
+            </li>
+            <li>
+              코드를 직접 만져보고 싶어지면, 무료 프로그램{" "}
+              <b>커서(Cursor)</b>를 써보세요. AI가 들어 있어 처음 하는
+              분께도 쉬워요.
+            </li>
+          </ul>
+          <button className="ghost" onClick={() => openUrl("https://cursor.com")}>
+            커서(Cursor) 구경하러 가기
+          </button>
+        </div>
       </div>
     );
   }
