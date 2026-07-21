@@ -1,3 +1,4 @@
+use crate::agent::Agent;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Stdio};
@@ -5,7 +6,7 @@ use std::sync::Mutex;
 use tauri::ipc::Channel;
 use tauri::State;
 
-/// `claude auth status --json` 출력 (비밀값 없음 — 상태 메타데이터만)
+/// 로그인 상태 메타데이터 (비밀값 없음)
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LoginStatus {
@@ -24,7 +25,7 @@ pub enum LoginEvent {
     /// 브라우저에서 열어야 할 로그인 URL
     Url { url: String },
     Log { line: String },
-    /// 로그인 프로세스 종료 (성공 여부는 auth status 재확인으로 판정)
+    /// 로그인 프로세스 종료 (성공 여부는 상태 재확인으로 판정)
     Exit { success: bool },
 }
 
@@ -32,44 +33,68 @@ pub enum LoginEvent {
 pub struct LoginSession(pub Mutex<Option<Child>>);
 
 #[tauri::command]
-pub async fn login_status() -> Result<LoginStatus, String> {
-    tauri::async_runtime::spawn_blocking(|| {
-        let bin = crate::detect::claude_bin()
-            .ok_or_else(|| "클로드 코드가 아직 설치되어 있지 않아요.".to_string())?;
-        query_status(&bin)
+pub async fn login_status(agent: String) -> Result<LoginStatus, String> {
+    let agent = Agent::from_id(&agent)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let bin = crate::detect::agent_bin(agent).ok_or_else(|| {
+            format!("{}가 아직 설치되어 있지 않아요.", agent.display_name())
+        })?;
+        query_status(agent, &bin)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
-fn query_status(bin: &std::path::Path) -> Result<LoginStatus, String> {
+fn query_status(agent: Agent, bin: &std::path::Path) -> Result<LoginStatus, String> {
     let out = crate::detect::command(bin)
-        .args(["auth", "status", "--json"])
+        .args(agent.status_args())
         .stdin(Stdio::null())
         .output()
         .map_err(|e| format!("로그인 상태를 확인하지 못했어요: {e}"))?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    serde_json::from_str(text.trim())
-        .map_err(|_| "로그인 상태 응답을 이해하지 못했어요.".to_string())
+    let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+
+    match agent {
+        Agent::ClaudeCode => serde_json::from_str(&text)
+            .map_err(|_| "로그인 상태 응답을 이해하지 못했어요.".to_string()),
+        // codex는 JSON이 없으므로 종료 코드와 텍스트로 판정
+        Agent::Codex => Ok(LoginStatus {
+            logged_in: out.status.success(),
+            auth_method: out
+                .status
+                .success()
+                .then(|| {
+                    if text.to_lowercase().contains("api key") {
+                        "api-key".to_string()
+                    } else {
+                        "chatgpt".to_string()
+                    }
+                }),
+            email: None,
+            subscription_type: None,
+        }),
+    }
 }
 
-fn is_logged_in() -> bool {
-    crate::detect::claude_bin()
-        .and_then(|bin| query_status(&bin).ok())
+fn is_logged_in(agent: Agent) -> bool {
+    crate::detect::agent_bin(agent)
+        .and_then(|bin| query_status(agent, &bin).ok())
         .map(|s| s.logged_in)
         .unwrap_or(false)
 }
 
-/// `claude auth login`을 백그라운드로 시작한다.
-/// CLI가 브라우저를 직접 열고, 대비용 URL도 이벤트로 전달한다.
-/// 이후 사용자가 브라우저에서 받은 코드를 submit_login_code로 넘기면 완료된다.
+/// 로그인을 백그라운드로 시작한다. CLI가 브라우저를 직접 열고, 대비용 URL도 이벤트로 전달.
+/// 완료 감지는 프론트의 상태 폴링이 담당한다.
+/// `use_api_billing`: 클로드의 콘솔(API 과금) 로그인 분기 (M2 요금제 안내)
 #[tauri::command]
 pub fn start_login(
+    agent: String,
+    use_api_billing: Option<bool>,
     session: State<'_, LoginSession>,
     on_event: Channel<LoginEvent>,
 ) -> Result<(), String> {
-    let bin = crate::detect::claude_bin()
-        .ok_or_else(|| "클로드 코드가 아직 설치되어 있지 않아요.".to_string())?;
+    let agent = Agent::from_id(&agent)?;
+    let bin = crate::detect::agent_bin(agent)
+        .ok_or_else(|| format!("{}가 아직 설치되어 있지 않아요.", agent.display_name()))?;
 
     let mut guard = session.0.lock().unwrap();
     if let Some(mut old) = guard.take() {
@@ -78,7 +103,7 @@ pub fn start_login(
     }
 
     let mut child = crate::detect::command(&bin)
-        .args(["auth", "login", "--claudeai"])
+        .args(agent.login_args(use_api_billing.unwrap_or(false)))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -90,20 +115,16 @@ pub fn start_login(
     *guard = Some(child);
     drop(guard);
 
-    for (reader, is_stdout) in [
-        (Box::new(stdout) as Box<dyn std::io::Read + Send>, true),
-        (Box::new(stderr), false),
+    for reader in [
+        Box::new(stdout) as Box<dyn std::io::Read + Send>,
+        Box::new(stderr),
     ] {
         let ch = on_event.clone();
         std::thread::spawn(move || {
             for line in BufReader::new(reader).lines().map_while(Result::ok) {
-                if is_stdout {
-                    if let Some(url) = extract_url(&line) {
-                        let _ = ch.send(LoginEvent::Url { url });
-                        continue;
-                    }
-                }
-                if !line.trim().is_empty() {
+                if let Some(url) = extract_url(&line) {
+                    let _ = ch.send(LoginEvent::Url { url });
+                } else if !line.trim().is_empty() {
                     let _ = ch.send(LoginEvent::Log { line });
                 }
             }
@@ -112,13 +133,15 @@ pub fn start_login(
     Ok(())
 }
 
-/// 브라우저 로그인 후 받은 확인 코드를 CLI에 전달하고 종료를 기다린다.
+/// 브라우저 로그인 후 받은 확인 코드를 CLI에 전달하고 종료를 기다린다 (클로드 폴백 경로).
 #[tauri::command]
 pub async fn submit_login_code(
+    agent: String,
     session: State<'_, LoginSession>,
     on_event: Channel<LoginEvent>,
     code: String,
 ) -> Result<(), String> {
+    let agent = Agent::from_id(&agent)?;
     let mut child = session
         .0
         .lock()
@@ -148,7 +171,7 @@ pub async fn submit_login_code(
             }
             if last_status_check.elapsed() > std::time::Duration::from_secs(3) {
                 last_status_check = std::time::Instant::now();
-                if is_logged_in() {
+                if is_logged_in(agent) {
                     success = true;
                     break;
                 }
@@ -164,7 +187,7 @@ pub async fn submit_login_code(
         }
         // 최종 안전망: 프로세스 판정과 무관하게 실제 로그인 여부가 진실
         if !success {
-            success = is_logged_in();
+            success = is_logged_in(agent);
         }
         let _ = on_event.send(LoginEvent::Exit { success });
         if success {
@@ -197,10 +220,12 @@ fn extract_url(line: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn extract_url_from_osc8_line() {
         let line = "If the browser didn't open, visit: \x1b]8;;https://claude.com/cai/oauth/authorize?code=true&state=abc\x1b\\https://claude.com/cai/oauth/authorize?code=true&state=abc\x1b]8;;\x1b\\";
-        let url = super::extract_url(line).unwrap();
+        let url = extract_url(line).unwrap();
         assert_eq!(
             url,
             "https://claude.com/cai/oauth/authorize?code=true&state=abc"
@@ -208,24 +233,19 @@ mod tests {
     }
 
     #[test]
-    fn parse_status_json() {
+    fn parse_claude_status_json() {
         let json = r#"{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty","email":"a@b.c","orgId":"x","orgName":"y","subscriptionType":"pro"}"#;
-        let s: super::LoginStatus = serde_json::from_str(json).unwrap();
+        let s: LoginStatus = serde_json::from_str(json).unwrap();
         assert!(s.logged_in);
         assert_eq!(s.subscription_type.as_deref(), Some("pro"));
     }
 
-    /// 실제 머신의 로그인 상태 조회 (읽기 전용). 실행: cargo test -- --ignored
+    /// 실기기 상태 조회 (읽기 전용). 실행: cargo test -- --ignored
     #[test]
     #[ignore = "claude 설치 필요"]
     fn login_status_on_this_machine() {
-        let bin = crate::detect::claude_bin().expect("claude installed");
-        let out = std::process::Command::new(bin)
-            .args(["auth", "status", "--json"])
-            .output()
-            .unwrap();
-        let s: super::LoginStatus =
-            serde_json::from_str(String::from_utf8_lossy(&out.stdout).trim()).unwrap();
+        let bin = crate::detect::agent_bin(Agent::ClaudeCode).expect("claude installed");
+        let s = query_status(Agent::ClaudeCode, &bin).unwrap();
         println!("loggedIn={} type={:?}", s.logged_in, s.subscription_type);
     }
 }

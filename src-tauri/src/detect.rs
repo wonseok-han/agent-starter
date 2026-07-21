@@ -17,41 +17,47 @@ pub struct EnvironmentReport {
     pub os: String,
     pub arch: String,
     pub os_version: Option<String>,
-    pub claude: Option<ToolInfo>,
+    /// 선택한 에이전트의 설치 정보
+    pub agent: Option<ToolInfo>,
     pub node: Option<ToolInfo>,
     pub checked_paths: Vec<String>,
 }
 
 #[tauri::command]
-pub async fn detect_environment() -> Result<EnvironmentReport, String> {
-    tauri::async_runtime::spawn_blocking(detect)
+pub async fn detect_environment(agent: String) -> Result<EnvironmentReport, String> {
+    let agent = crate::agent::Agent::from_id(&agent)?;
+    tauri::async_runtime::spawn_blocking(move || detect(agent))
         .await
         .map_err(|e| e.to_string())
 }
 
-pub fn detect() -> EnvironmentReport {
+pub fn detect(agent: crate::agent::Agent) -> EnvironmentReport {
     let home = home_dir();
     let shell_dirs = shell_path_dirs();
     let mut checked = Vec::new();
 
-    let claude = probe(&claude_candidates(&home, &shell_dirs), &shell_dirs, &mut checked);
+    let agent_info = probe(
+        &agent_candidates(agent, &home, &shell_dirs),
+        &shell_dirs,
+        &mut checked,
+    );
     let node = probe(&node_candidates(&home, &shell_dirs), &shell_dirs, &mut checked);
 
     EnvironmentReport {
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
         os_version: os_version(),
-        claude,
+        agent: agent_info,
         node,
         checked_paths: checked,
     }
 }
 
-/// 설치된 claude 실행 파일의 절대경로 (없으면 None)
-pub(crate) fn claude_bin() -> Option<PathBuf> {
+/// 설치된 에이전트 실행 파일의 절대경로 (없으면 None)
+pub(crate) fn agent_bin(agent: crate::agent::Agent) -> Option<PathBuf> {
     let home = home_dir();
     let shell_dirs = shell_path_dirs();
-    claude_candidates(&home, &shell_dirs)
+    agent_candidates(agent, &home, &shell_dirs)
         .into_iter()
         .find(|p| p.is_file())
 }
@@ -71,16 +77,14 @@ pub(crate) fn exe(bin: &str) -> String {
 
 /// GUI 앱은 터미널과 PATH가 다르므로, 알려진 설치 위치를 절대경로로 우선 확인하고
 /// 사용자의 로그인 셸 PATH를 보조로 사용한다 (docs/architecture.md §5).
-fn claude_candidates(home: &Path, shell_dirs: &[PathBuf]) -> Vec<PathBuf> {
-    let mut dirs: Vec<PathBuf> = vec![home.join(".local/bin")];
-    if !cfg!(windows) {
-        dirs.push(PathBuf::from("/opt/homebrew/bin"));
-        dirs.push(PathBuf::from("/usr/local/bin"));
-        dirs.push(home.join(".claude/local"));
-        dirs.push(home.join(".npm-global/bin"));
-    }
+fn agent_candidates(
+    agent: crate::agent::Agent,
+    home: &Path,
+    shell_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
+    let mut dirs = agent.candidate_dirs(home);
     dirs.extend(shell_dirs.iter().cloned());
-    dedup_join(dirs, &exe("claude"))
+    dedup_join(dirs, &exe(agent.bin_name()))
 }
 
 fn node_candidates(home: &Path, shell_dirs: &[PathBuf]) -> Vec<PathBuf> {
@@ -213,7 +217,7 @@ fn os_version() -> Option<String> {
 mod tests {
     #[test]
     fn detect_runs_on_this_machine() {
-        let report = super::detect();
+        let report = super::detect(crate::agent::Agent::ClaudeCode);
         println!("{report:#?}");
         assert!(!report.os.is_empty());
         assert!(!report.arch.is_empty());

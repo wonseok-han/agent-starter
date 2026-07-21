@@ -1,3 +1,4 @@
+mod agent;
 mod detect;
 mod install;
 mod login;
@@ -10,7 +11,7 @@ pub fn run() {
         .manage(login::LoginSession::default())
         .invoke_handler(tauri::generate_handler![
             detect::detect_environment,
-            install::install_claude_code,
+            install::install_agent,
             login::login_status,
             login::start_login,
             login::submit_login_code,
