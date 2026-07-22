@@ -45,7 +45,12 @@ const faqs = [
   {
     question: "이미 설치한 사람도 쓸 수 있나요?",
     answer:
-      "물론이에요. 먼저 컴퓨터를 확인한 뒤 이미 끝난 단계는 건너뛰고 필요한 설정만 도와드려요.",
+      "물론이에요. 설치와 로그인이 끝난 에이전트가 있으면 바로 홈으로 들어가요. 프로젝트 폴더도 직접 찾아 보여주고, 필요한 설정만 이어서 도와드립니다.",
+  },
+  {
+    question: "처음 설정한 뒤에도 쓸 일이 있나요?",
+    answer:
+      "네. 홈에서 Claude Code와 Codex의 설치·로그인·업데이트 상태를 확인하고, 기존 프로젝트를 다시 열거나 새 프로젝트를 시작할 수 있어요.",
   },
   {
     question: "내 비밀번호나 대화가 앱에 저장되나요?",
@@ -75,32 +80,47 @@ function ProductPreview() {
         <span>Hello, Agent</span>
         <span className="window-spacer" />
       </div>
-      <div className="preview-body">
-        <p className="preview-eyebrow">코딩 에이전트 시작 도우미</p>
-        <h2>어떤 코딩 에이전트를 시작할까요?</h2>
-        <p>이미 쓰고 있는 구독에 맞춰 고르면 돼요.</p>
-        <div className="preview-progress" aria-hidden="true">
-          {["에이전트", "진단", "설치", "로그인", "프로젝트", "완료"].map(
-            (label, index) => (
-              <div className={index === 0 ? "current" : ""} key={label}>
-                <span>{index + 1}</span>
-                <small>{label}</small>
-              </div>
-            ),
-          )}
+      <div className="preview-body dashboard-preview">
+        <div className="preview-heading">
+          <div>
+            <p className="preview-eyebrow">HELLO, AGENT</p>
+            <h2>내 에이전트</h2>
+          </div>
+          <span className="preview-ready">● 모두 준비됨</span>
         </div>
-        <div className="agent-options">
-          <div className="agent-option recommended">
-            <span className="option-badge">추천</span>
-            <strong>클로드 코드</strong>
-            <small>Anthropic</small>
-            <p>Claude 구독으로 시작해요.</p>
+        <div className="preview-agent-list">
+          <div className="preview-agent-row">
+            <span className="preview-agent-letter claude">C</span>
+            <div>
+              <strong>Claude Code</strong>
+              <small>설치됨 · 2.1.216</small>
+            </div>
+            <span className="preview-check">✓</span>
           </div>
-          <div className="agent-option">
-            <strong>코덱스</strong>
-            <small>OpenAI</small>
-            <p>ChatGPT 계정으로 시작해요.</p>
+          <div className="preview-agent-row">
+            <span className="preview-agent-letter codex">O</span>
+            <div>
+              <strong>Codex</strong>
+              <small>설치됨 · 0.145.0</small>
+            </div>
+            <span className="preview-update">업데이트</span>
           </div>
+        </div>
+        <div className="preview-project-head">
+          <div>
+            <h2>내 프로젝트</h2>
+            <p>이어서 작업하거나, 새로 시작해요.</p>
+          </div>
+          <span>+ 새 프로젝트</span>
+        </div>
+        <div className="preview-project-card">
+          <span className="preview-folder">□</span>
+          <div>
+            <strong>my-first-project</strong>
+            <small>코덱스 · 최근 사용: 오늘</small>
+            <code>Documents/my-first-project</code>
+          </div>
+          <span className="preview-open">열기</span>
         </div>
       </div>
     </div>
@@ -116,6 +136,7 @@ export default function Home() {
           <span>Hello, Agent</span>
         </a>
         <nav aria-label="주요 메뉴">
+          <a href="#homebase">설치 후에도</a>
           <a href="#how">어떻게 작동하나요?</a>
           <a href="#safety">안전한가요?</a>
           <a href="#faq">자주 묻는 질문</a>
@@ -137,7 +158,8 @@ export default function Home() {
           </h1>
           <p className="hero-description">
             설치부터 로그인, 안전한 첫 프로젝트까지. Hello, Agent가 어려운
-            설정을 대신하고 첫 대화까지 차근차근 안내합니다.
+            설정을 대신하고, 이후에도 프로젝트와 에이전트 상태를 한곳에서
+            챙겨드립니다.
           </p>
           <div className="hero-actions">
             <a className="button primary" href="#download">
@@ -178,6 +200,43 @@ export default function Home() {
         <p>검은 터미널 창</p>
         <span aria-hidden="true">×</span>
         <p>혼자 해결하는 오류</p>
+      </section>
+
+      <section className="section homebase-section" id="homebase">
+        <div className="section-heading">
+          <p className="section-kicker">처음 한 번으로 끝나지 않도록</p>
+          <h2>내 코딩 작업의 쉬운 출발점</h2>
+          <p>
+            다시 열면 복잡한 설정 화면 대신 내 프로젝트와 에이전트 상태를 바로
+            만나요. 설치한 뒤에도 계속 쓸 수 있는 홈이 됩니다.
+          </p>
+        </div>
+        <div className="homebase-grid">
+          <article>
+            <span className="homebase-icon" aria-hidden="true">⌕</span>
+            <h3>프로젝트를 알아서 찾아요</h3>
+            <p>
+              내가 고른 폴더에서 Claude Code와 Codex 프로젝트를 찾아 한곳에
+              모아 보여줘요.
+            </p>
+          </article>
+          <article>
+            <span className="homebase-icon" aria-hidden="true">●</span>
+            <h3>준비 상태가 한눈에 보여요</h3>
+            <p>
+              설치 여부와 로그인 상태를 확인하고, 준비가 덜 된 에이전트만 바로
+              설정할 수 있어요.
+            </p>
+          </article>
+          <article>
+            <span className="homebase-icon" aria-hidden="true">↑</span>
+            <h3>새 버전도 놓치지 않아요</h3>
+            <p>
+              업데이트가 나오면 조용히 알려주고, 어려운 명령어 없이 앱 안에서
+              최신 상태로 바꿔요.
+            </p>
+          </article>
+        </div>
       </section>
 
       <section className="section how-section" id="how">

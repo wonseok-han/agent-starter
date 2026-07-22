@@ -33,6 +33,9 @@ test("renders the Hello, Agent landing page", async () => {
   assert.match(html, /Hello, Agent/);
   assert.match(html, /터미널을 몰라도/);
   assert.match(html, /버튼을 따라가는 6단계/);
+  assert.match(html, /내 코딩 작업의 쉬운 출발점/);
+  assert.match(html, /프로젝트를 알아서 찾아요/);
+  assert.match(html, /새 버전도 놓치지 않아요/);
   assert.match(html, /Claude Code/);
   assert.match(html, /Codex/);
   assert.match(html, /자주 묻는 질문/);

@@ -12,11 +12,11 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(baseUrl),
     title: "Hello, Agent — 터미널 없이 코딩 에이전트 시작하기",
     description:
-      "Claude Code와 Codex의 설치부터 로그인, 안전한 첫 프로젝트와 첫 대화까지 안내하는 초보자용 데스크톱 앱입니다.",
+      "Claude Code와 Codex의 설치부터 로그인, 프로젝트 관리와 업데이트 확인까지 돕는 초보자용 데스크톱 앱입니다.",
     openGraph: {
       title: "터미널을 몰라도, 코딩 에이전트는 쓸 수 있어요.",
       description:
-        "설치부터 첫 대화까지, Hello, Agent가 차근차근 안내합니다.",
+        "설치부터 첫 대화, 프로젝트와 에이전트 관리까지 Hello, Agent가 차근차근 안내합니다.",
       type: "website",
       locale: "ko_KR",
       siteName: "Hello, Agent",
