@@ -12,11 +12,39 @@ export interface SavedProject {
 
 const FILE = "hello-agent.json";
 const PROJECTS_KEY = "projects";
+const BASE_DIR_KEY = "baseDir";
 
 let storePromise: Promise<Store> | null = null;
 function getStore(): Promise<Store> {
   if (!storePromise) storePromise = load(FILE, { autoSave: true });
   return storePromise;
+}
+
+/** 프로젝트를 나열할 기준 폴더. 미설정이면 null(호출부가 기본값=Documents로 채운다). */
+export async function getBaseDir(): Promise<string | null> {
+  try {
+    const store = await getStore();
+    return (await store.get<string>(BASE_DIR_KEY)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setBaseDir(dir: string): Promise<void> {
+  try {
+    const store = await getStore();
+    await store.set(BASE_DIR_KEY, dir);
+  } catch {
+    // 무시
+  }
+}
+
+/** 경로별 마지막 사용 시각(정렬용). store에 기록이 있으면 반환. */
+export async function lastOpenedMap(): Promise<Record<string, number>> {
+  const list = await listProjects();
+  const map: Record<string, number> = {};
+  for (const p of list) map[p.path] = p.lastOpenedAt;
+  return map;
 }
 
 export async function listProjects(): Promise<SavedProject[]> {

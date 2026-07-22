@@ -3,13 +3,8 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n } from "./i18n";
 import { diagnoseError, toAppError, type AppError } from "./doctor";
-import {
-  listProjects,
-  saveProject,
-  touchProject,
-  removeProject,
-  type SavedProject,
-} from "./store";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { getBaseDir, setBaseDir, saveProject, lastOpenedMap } from "./store";
 import type { MessageKey } from "./locales/ko";
 import "./App.css";
 
@@ -68,6 +63,43 @@ interface AgentStatus {
   version: string | null;
   loggedIn: boolean;
   path: string | null;
+}
+
+// 기준 폴더 스캔으로 발견한 프로젝트 (앱 기억이 아니라 디스크 실제 폴더)
+interface ScannedProject {
+  path: string;
+  name: string;
+  agent: string;
+}
+interface HomeProject extends ScannedProject {
+  lastOpenedAt: number;
+}
+
+// 기준 폴더를 스캔해 프로젝트 목록을 만들고, store의 최근 사용 시각으로 정렬한다.
+async function loadHomeProjects(base: string): Promise<HomeProject[]> {
+  try {
+    const [scanned, last] = await Promise.all([
+      invoke<ScannedProject[]>("scan_projects", { base }),
+      lastOpenedMap(),
+    ]);
+    return scanned
+      .map((s) => ({ ...s, lastOpenedAt: last[s.path] ?? 0 }))
+      .sort(
+        (a, b) =>
+          b.lastOpenedAt - a.lastOpenedAt || a.name.localeCompare(b.name),
+      );
+  } catch {
+    return [];
+  }
+}
+
+async function openDirectoryDialog(): Promise<string | null> {
+  try {
+    const picked = await openDialog({ directory: true, multiple: false });
+    return typeof picked === "string" ? picked : null;
+  } catch {
+    return null;
+  }
 }
 
 const shortVersion = (v: string | null) => v?.split(" ")[0] ?? "";
@@ -175,17 +207,20 @@ type View = "loading" | "home" | "wizard";
 function App() {
   const { t, lang, setLang } = useI18n();
   const [view, setView] = useState<View>("loading");
-  const [projects, setProjects] = useState<SavedProject[]>([]);
+  const [projects, setProjects] = useState<HomeProject[]>([]);
+  const [baseDir, setBaseDirState] = useState<string>("");
   const [step, setStep] = useState(0);
   const [agent, setAgent] = useState<AgentId | null>(null);
   const [report, setReport] = useState<EnvironmentReport | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
 
-  // 홈 진입 조건: 저장된 프로젝트가 있거나, 이미 에이전트를 설치·로그인해 둔 경우
-  // (이미 준비된 사용자는 초보자가 아니므로 온보딩 위저드를 건너뛴다).
-  // 둘 다 아니면 첫 온보딩 위저드.
+  // 홈 진입 조건: 기준 폴더에 실제 프로젝트 폴더가 있거나, 이미 에이전트를
+  // 설치·로그인해 둔 경우(이미 준비된 사용자는 온보딩 불필요). 둘 다 아니면 위저드.
   async function refreshHome() {
-    const list = await listProjects();
+    let base = await getBaseDir();
+    if (!base) base = await invoke<string>("default_projects_dir");
+    setBaseDirState(base);
+    const list = await loadHomeProjects(base);
     setProjects(list);
     if (list.length > 0) {
       setView("home");
@@ -195,7 +230,15 @@ function App() {
   }
   useEffect(() => {
     refreshHome();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function changeBaseDir() {
+    const picked = await openDirectoryDialog();
+    if (!picked) return;
+    await setBaseDir(picked);
+    await refreshHome();
+  }
 
   function selectAgent(id: AgentId) {
     setAgent(id);
@@ -222,8 +265,7 @@ function App() {
   }
 
   async function goHome() {
-    const list = await listProjects();
-    setProjects(list);
+    await refreshHome();
     setView("home");
   }
 
@@ -267,8 +309,10 @@ function App() {
       ) : view === "home" ? (
         <HomeView
           projects={projects}
+          baseDir={baseDir}
           onNew={startWizard}
           onSetupAgent={setupAgent}
+          onChangeBase={changeBaseDir}
           onChanged={refreshHome}
         />
       ) : (
@@ -421,35 +465,34 @@ function AgentRow({ id, onSetup }: { id: AgentId; onSetup: () => void }) {
 
 function HomeView({
   projects,
+  baseDir,
   onNew,
   onSetupAgent,
+  onChangeBase,
   onChanged,
 }: {
-  projects: SavedProject[];
+  projects: HomeProject[];
+  baseDir: string;
   onNew: () => void;
   onSetupAgent: (id: AgentId) => void;
+  onChangeBase: () => void;
   onChanged: () => void;
 }) {
   const { t, lang } = useI18n();
   const [opening, setOpening] = useState<string | null>(null);
 
-  async function open(p: SavedProject) {
+  async function open(p: HomeProject) {
     setOpening(p.path);
     try {
       await openPath(p.path);
-      await touchProject(p.path);
+      // 최근 사용 시각 기록(정렬용)
+      await saveProject({ path: p.path, agent: p.agent, name: p.name });
       onChanged();
     } catch {
-      // 폴더가 지워졌을 수 있음 — 목록 갱신으로 사용자에게 노출
       onChanged();
     } finally {
       setOpening(null);
     }
-  }
-
-  async function remove(p: SavedProject) {
-    await removeProject(p.path);
-    onChanged();
   }
 
   const fmtWhen = (ts: number) =>
@@ -476,6 +519,14 @@ function HomeView({
         </button>
       </div>
 
+      <div className="base-row">
+        <span className="base-label">{t("home.base.label")}</span>
+        <code className="base-path">{baseDir}</code>
+        <button className="link" onClick={onChangeBase}>
+          {t("home.base.change")}
+        </button>
+      </div>
+
       {projects.length === 0 ? (
         <p className="muted home-empty">{t("home.empty")}</p>
       ) : (
@@ -485,8 +536,10 @@ function HomeView({
               <div className="project-info">
                 <strong>{p.name}</strong>
                 <span className="project-meta">
-                  {t(`home.agent.${p.agent}` as MessageKey)} ·{" "}
-                  {t("home.lastOpened", { when: fmtWhen(p.lastOpenedAt) })}
+                  {t(`home.agent.${p.agent}` as MessageKey)}
+                  {p.lastOpenedAt > 0
+                    ? ` · ${t("home.lastOpened", { when: fmtWhen(p.lastOpenedAt) })}`
+                    : ""}
                 </span>
                 <code className="project-path">{p.path}</code>
               </div>
@@ -497,9 +550,6 @@ function HomeView({
                   disabled={opening !== null}
                 >
                   {opening === p.path ? t("home.opening") : t("home.open")}
-                </button>
-                <button className="link" onClick={() => remove(p)}>
-                  {t("home.remove")}
                 </button>
               </div>
             </li>
@@ -1036,9 +1086,11 @@ function ProjectStep({
     setCreating(true);
     setError(null);
     try {
+      const base = (await getBaseDir()) ?? undefined;
       const info = await invoke<ProjectInfo>("create_first_project", {
         agent,
         name,
+        base,
       });
       await saveProject({ path: info.path, agent, name });
       onProject(info);

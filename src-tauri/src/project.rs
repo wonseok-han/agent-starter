@@ -12,6 +12,69 @@ pub struct ProjectInfo {
     pub created: bool,
 }
 
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedProject {
+    pub path: String,
+    pub name: String,
+    /// 표식으로 추정한 에이전트 ("claude-code" | "codex")
+    pub agent: String,
+}
+
+/// 기본 프로젝트 폴더(사용자가 지정 안 하면 Documents).
+#[tauri::command]
+pub fn default_projects_dir() -> String {
+    documents_dir().display().to_string()
+}
+
+/// 지정한 폴더의 바로 아래 하위 폴더 중, 에이전트 프로젝트 표식이 있는 것을 찾아 목록화한다.
+/// 표식: `.claude/`·`CLAUDE.md`(클로드), `AGENTS.md`(코덱스). 앱 기억(store)과 무관하게
+/// 디스크에서 실제 프로젝트를 발견하므로, 다른 데서 만든 프로젝트도 잡힌다.
+#[tauri::command]
+pub async fn scan_projects(base: String) -> Result<Vec<ScannedProject>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dir = PathBuf::from(&base);
+        let mut found = Vec::new();
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            // 폴더가 없거나 접근 불가면 빈 목록(홈은 "프로젝트 없음"을 보여줌)
+            Err(_) => return Ok(found),
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            if let Some(agent) = detect_project_agent(&path) {
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                found.push(ScannedProject {
+                    path: path.display().to_string(),
+                    name,
+                    agent: agent.into(),
+                });
+            }
+        }
+        found.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        Ok(found)
+    })
+    .await
+    .map_err(|e| AppError::generic(e.to_string()))?
+}
+
+/// 폴더의 표식으로 에이전트를 추정 (클로드 우선 — 둘 다 있으면 클로드).
+fn detect_project_agent(dir: &Path) -> Option<&'static str> {
+    if dir.join(".claude").is_dir() || dir.join("CLAUDE.md").is_file() {
+        Some("claude-code")
+    } else if dir.join("AGENTS.md").is_file() {
+        Some("codex")
+    } else {
+        None
+    }
+}
+
 /// 초보자 안내 프리셋: 프로젝트의 에이전트에게 사용자가 초보자임을 알린다.
 const BEGINNER_GUIDE_MD: &str = "# 내 첫 프로젝트
 
@@ -47,19 +110,23 @@ sandbox_mode = \"workspace-write\"
 pub async fn create_first_project(
     agent: String,
     name: Option<String>,
+    base: Option<String>,
 ) -> Result<ProjectInfo, AppError> {
     let agent = Agent::from_id(&agent)?;
-    tauri::async_runtime::spawn_blocking(move || create(agent, name).map_err(AppError::classify))
-        .await
-        .map_err(|e| AppError::generic(e.to_string()))?
+    tauri::async_runtime::spawn_blocking(move || {
+        create(agent, name, base).map_err(AppError::classify)
+    })
+    .await
+    .map_err(|e| AppError::generic(e.to_string()))?
 }
 
-fn create(agent: Agent, name: Option<String>) -> Result<ProjectInfo, String> {
+fn create(agent: Agent, name: Option<String>, base: Option<String>) -> Result<ProjectInfo, String> {
     let name = sanitize_name(name.as_deref().unwrap_or("my-first-project"));
     if name.is_empty() {
         return Err("폴더 이름에 쓸 수 있는 글자가 없어요. 다른 이름을 지어 주세요.".into());
     }
-    let dir = documents_dir().join(&name);
+    let base_dir = base.map(PathBuf::from).unwrap_or_else(documents_dir);
+    let dir = base_dir.join(&name);
     let created = !dir.exists();
     std::fs::create_dir_all(&dir).map_err(|e| format!("폴더를 만들지 못했어요: {e}"))?;
 
@@ -180,19 +247,49 @@ mod tests {
 
     #[test]
     fn create_claude_project_with_safety_preset() {
+        let base = std::env::temp_dir().join(format!("ha-base-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
         let name = format!("hello-agent-테스트-{}", std::process::id());
-        let info = create(Agent::ClaudeCode, Some(name.clone())).unwrap();
+        let base_s = Some(base.display().to_string());
+        let info = create(Agent::ClaudeCode, Some(name.clone()), base_s.clone()).unwrap();
         let dir = std::path::PathBuf::from(&info.path);
         assert!(info.created);
+        assert!(dir.starts_with(&base));
         assert!(dir.join("CLAUDE.md").is_file());
         let settings =
             std::fs::read_to_string(dir.join(".claude").join("settings.json")).unwrap();
         assert!(settings.contains("deny"));
         serde_json::from_str::<serde_json::Value>(&settings).expect("valid json");
         // 두 번째 호출은 재사용으로 판정돼야 함
-        let again = create(Agent::ClaudeCode, Some(name)).unwrap();
+        let again = create(Agent::ClaudeCode, Some(name), base_s).unwrap();
         assert!(!again.created);
-        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn scan_finds_projects_by_marker() {
+        let base = std::env::temp_dir().join(format!("ha-scan-{}", std::process::id()));
+        // 클로드 표식 폴더
+        std::fs::create_dir_all(base.join("proj-claude")).unwrap();
+        std::fs::write(base.join("proj-claude").join("CLAUDE.md"), "x").unwrap();
+        // 코덱스 표식 폴더
+        std::fs::create_dir_all(base.join("proj-codex")).unwrap();
+        std::fs::write(base.join("proj-codex").join("AGENTS.md"), "x").unwrap();
+        // 표식 없는 폴더 — 제외돼야 함
+        std::fs::create_dir_all(base.join("just-a-folder")).unwrap();
+
+        let dir = base.clone();
+        let mut found: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .filter_map(|e| super::detect_project_agent(&e.path()).map(|a| (e.file_name(), a)))
+            .collect();
+        found.sort_by_key(|(n, _)| n.to_string_lossy().to_string());
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].1, "claude-code");
+        assert_eq!(found[1].1, "codex");
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]
