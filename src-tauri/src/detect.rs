@@ -24,11 +24,13 @@ pub struct EnvironmentReport {
 }
 
 #[tauri::command]
-pub async fn detect_environment(agent: String) -> Result<EnvironmentReport, String> {
+pub async fn detect_environment(
+    agent: String,
+) -> Result<EnvironmentReport, crate::error::AppError> {
     let agent = crate::agent::Agent::from_id(&agent)?;
     tauri::async_runtime::spawn_blocking(move || detect(agent))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| crate::error::AppError::generic(e.to_string()))
 }
 
 pub fn detect(agent: crate::agent::Agent) -> EnvironmentReport {

@@ -1,4 +1,5 @@
 use crate::agent::Agent;
+use crate::error::AppError;
 use serde::Serialize;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -33,7 +34,7 @@ pub async fn install_agent(
     agent: String,
     test_home: Option<String>,
     on_event: Channel<InstallEvent>,
-) -> Result<InstallResult, String> {
+) -> Result<InstallResult, AppError> {
     let agent = Agent::from_id(&agent)?;
     tauri::async_runtime::spawn_blocking(move || {
         let home = match test_home {
@@ -45,14 +46,14 @@ pub async fn install_agent(
         })
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| AppError::generic(e.to_string()))?
 }
 
 pub fn run_install(
     agent: Agent,
     home: &Path,
     emit: &(dyn Fn(InstallEvent) + Sync),
-) -> Result<InstallResult, String> {
+) -> Result<InstallResult, AppError> {
     let phase = |name: &str| emit(InstallEvent::Phase { name: name.into() });
 
     match agent {
@@ -74,10 +75,10 @@ pub fn run_install(
         .arg("--version")
         .env(home_env_var(), home)
         .output()
-        .map_err(|e| format!("설치된 {}를 실행하지 못했어요: {e}", agent.display_name()))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     let version = String::from_utf8_lossy(&out.stdout).trim().to_string();
     if !out.status.success() || version.is_empty() {
-        return Err("설치는 끝났지만 동작 확인에 실패했어요.".into());
+        return Err(AppError::generic("agent --version check failed after install"));
     }
 
     Ok(InstallResult {
@@ -92,11 +93,10 @@ fn install_via_vendor_script(
     home: &Path,
     emit: &(dyn Fn(InstallEvent) + Sync),
     phase: &dyn Fn(&str),
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     phase("download");
     let script_dir = home.join(".claude");
-    std::fs::create_dir_all(&script_dir)
-        .map_err(|e| format!("설치 준비 폴더를 만들지 못했어요: {e}"))?;
+    std::fs::create_dir_all(&script_dir).map_err(|e| AppError::classify(e.to_string()))?;
     let (url, script_name) = if cfg!(windows) {
         (CLAUDE_SCRIPT_URL_WINDOWS, "hello-agent-install.ps1")
     } else {
@@ -107,9 +107,12 @@ fn install_via_vendor_script(
         .args(["-fsSL", url, "-o"])
         .arg(&script)
         .status()
-        .map_err(|e| format!("다운로드 도구를 실행하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     if !status.success() {
-        return Err("설치 파일을 내려받지 못했어요. 인터넷 연결을 확인해 주세요.".into());
+        return Err(AppError::network(format!(
+            "installer download failed (curl exit {})",
+            status.code().unwrap_or(-1)
+        )));
     }
 
     phase("install");
@@ -118,16 +121,17 @@ fn install_via_vendor_script(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("설치를 시작하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     // 스크립트는 진행률을 출력하지 않으므로 다운로드 폴더 크기를 관찰한다
     let status = wait_streaming(&mut child, &home.join(".claude").join("downloads"), emit)
-        .map_err(|e| format!("설치 진행 상태를 확인하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     let _ = std::fs::remove_file(&script);
     if !status.success() {
-        return Err(format!(
-            "설치가 중간에 멈췄어요 (코드 {}). 인터넷 연결을 확인하고 다시 시도해 주세요.",
+        // exit 코드만으론 원인이 애매 — 프론트 닥터가 스트리밍된 로그로 보완한다
+        return Err(AppError::generic(format!(
+            "installer exited with code {}",
             status.code().unwrap_or(-1)
-        ));
+        )));
     }
     Ok(())
 }
@@ -137,13 +141,12 @@ fn install_via_github_tarball(
     home: &Path,
     emit: &(dyn Fn(InstallEvent) + Sync),
     phase: &dyn Fn(&str),
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     phase("download");
     let target = codex_target()?;
     let url = format!("{CODEX_RELEASE_BASE}/codex-{target}.tar.gz");
     let cache = home.join(".cache").join("hello-agent");
-    std::fs::create_dir_all(&cache)
-        .map_err(|e| format!("설치 준비 폴더를 만들지 못했어요: {e}"))?;
+    std::fs::create_dir_all(&cache).map_err(|e| AppError::classify(e.to_string()))?;
     let tarball = cache.join("codex.tar.gz");
 
     let mut child = crate::detect::command(&curl_path())
@@ -153,11 +156,14 @@ fn install_via_github_tarball(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("다운로드 도구를 실행하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     let status = wait_streaming(&mut child, &tarball, emit)
-        .map_err(|e| format!("다운로드 상태를 확인하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     if !status.success() {
-        return Err("설치 파일을 내려받지 못했어요. 인터넷 연결을 확인해 주세요.".into());
+        return Err(AppError::network(format!(
+            "codex download failed (curl exit {})",
+            status.code().unwrap_or(-1)
+        )));
     }
 
     phase("install");
@@ -167,19 +173,21 @@ fn install_via_github_tarball(
         .arg("-C")
         .arg(&cache)
         .status()
-        .map_err(|e| format!("압축을 풀지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     if !status.success() {
-        return Err("설치 파일의 압축을 풀지 못했어요. 다시 시도해 주세요.".into());
+        return Err(AppError::checksum(format!(
+            "failed to extract codex archive (tar exit {})",
+            status.code().unwrap_or(-1)
+        )));
     }
 
     let inner = cache.join(format!("codex-{target}"));
     let bin_dir = home.join(".local").join("bin");
-    std::fs::create_dir_all(&bin_dir)
-        .map_err(|e| format!("설치 폴더를 만들지 못했어요: {e}"))?;
+    std::fs::create_dir_all(&bin_dir).map_err(|e| AppError::classify(e.to_string()))?;
     let dest = bin_dir.join(crate::detect::exe("codex"));
     std::fs::rename(&inner, &dest)
         .or_else(|_| std::fs::copy(&inner, &dest).map(|_| ()))
-        .map_err(|e| format!("프로그램을 제자리에 놓지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -248,15 +256,15 @@ fn path_size(p: &Path) -> u64 {
         .unwrap_or(0)
 }
 
-fn codex_target() -> Result<&'static str, String> {
+fn codex_target() -> Result<&'static str, AppError> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("macos", "aarch64") => Ok("aarch64-apple-darwin"),
         ("macos", "x86_64") => Ok("x86_64-apple-darwin"),
         ("windows", "x86_64") => Ok("x86_64-pc-windows-msvc.exe"),
         ("windows", "aarch64") => Ok("aarch64-pc-windows-msvc.exe"),
-        (os, arch) => Err(format!(
-            "이 컴퓨터({os}/{arch})에서는 코덱스 설치를 아직 지원하지 않아요."
-        )),
+        (os, arch) => Err(AppError::generic(format!(
+            "codex install not supported on {os}/{arch}"
+        ))),
     }
 }
 
@@ -317,7 +325,7 @@ fn script_command(script: &Path, home: &Path) -> Command {
 /// macOS: ~/.local/bin이 셸 프로파일에 없으면 ~/.zshrc에 추가한다.
 /// 반환값: 수정한 위치 (이미 설정돼 있으면 None)
 #[cfg(not(windows))]
-fn ensure_path(home: &Path) -> Result<Option<String>, String> {
+fn ensure_path(home: &Path) -> Result<Option<String>, AppError> {
     let profiles = [".zshrc", ".zprofile", ".bashrc", ".bash_profile"];
     for name in profiles {
         let p = home.join(name);
@@ -334,9 +342,9 @@ fn ensure_path(home: &Path) -> Result<Option<String>, String> {
         .create(true)
         .append(true)
         .open(&zshrc)
-        .map_err(|e| format!("터미널 설정 파일을 열지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     f.write_all(snippet.as_bytes())
-        .map_err(|e| format!("터미널 설정을 저장하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     Ok(Some(zshrc.display().to_string()))
 }
 
@@ -344,7 +352,7 @@ fn ensure_path(home: &Path) -> Result<Option<String>, String> {
 /// SetEnvironmentVariable('User')는 WM_SETTINGCHANGE 브로드캐스트까지 수행하므로
 /// 새로 여는 터미널에 바로 반영된다.
 #[cfg(windows)]
-fn ensure_path(home: &Path) -> Result<Option<String>, String> {
+fn ensure_path(home: &Path) -> Result<Option<String>, AppError> {
     let bin_dir = home.join(".local").join("bin");
     let ps = format!(
         "$dir = '{}'; \
@@ -357,9 +365,9 @@ fn ensure_path(home: &Path) -> Result<Option<String>, String> {
         .args(["-NoProfile", "-Command", &ps])
         .env_remove("PSModulePath")
         .output()
-        .map_err(|e| format!("터미널 설정 도구를 실행하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
     if !out.status.success() {
-        return Err("터미널 설정을 저장하지 못했어요.".into());
+        return Err(AppError::generic("failed to update user PATH via PowerShell"));
     }
     let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
     Ok(if text == "updated" {

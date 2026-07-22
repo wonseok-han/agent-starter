@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { useI18n } from "./i18n";
-import { diagnose } from "./doctor";
+import { diagnoseError, toAppError, type AppError } from "./doctor";
 import type { MessageKey } from "./locales/ko";
 import "./App.css";
 
@@ -96,14 +96,14 @@ function DoctorCard({
   onRetry,
   retryLabel,
 }: {
-  error: string;
+  error: AppError;
   log?: string[];
   onRetry?: () => void;
   retryLabel?: string;
 }) {
   const { t } = useI18n();
-  const dx = diagnose(error, log);
-  const detail = [error, ...(log ?? [])].filter(Boolean).join("\n");
+  const dx = diagnoseError(error, log);
+  const detail = [error.detail, ...(log ?? [])].filter(Boolean).join("\n");
   return (
     <div className="doctor">
       <span className="doctor-badge">{t("doctor.badge")}</span>
@@ -268,7 +268,7 @@ function DiagnosisStep({
     try {
       onReport(await invoke<EnvironmentReport>("detect_environment", { agent }));
     } catch (e) {
-      setError(String(e));
+      setError(toAppError(e).detail);
     } finally {
       setRunning(false);
     }
@@ -359,7 +359,7 @@ function InstallStep({
   const [log, setLog] = useState<string[]>([]);
   const [downloaded, setDownloaded] = useState(0);
   const [result, setResult] = useState<InstallResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
   const running = phase !== null && !result && !error;
   const name = t(`agent.${agent}.name` as MessageKey);
 
@@ -401,7 +401,7 @@ function InstallStep({
         }),
       );
     } catch (err) {
-      setError(String(err));
+      setError(toAppError(err));
     }
   }
 
@@ -513,7 +513,7 @@ function LoginStep({ agent, onNext }: { agent: AgentId; onNext: () => void }) {
       setStatus(await invoke<LoginStatus>("login_status", { agent }));
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(toAppError(e).detail);
     } finally {
       setChecking(false);
     }
@@ -561,7 +561,7 @@ function LoginStep({ agent, onNext }: { agent: AgentId; onNext: () => void }) {
     try {
       await openSession(useApiBilling);
     } catch (err) {
-      setError(String(err));
+      setError(toAppError(err).detail);
       setMode("idle");
     }
   }
@@ -582,7 +582,7 @@ function LoginStep({ agent, onNext }: { agent: AgentId; onNext: () => void }) {
         setError(t("login.codeFail"));
         setMode("waiting");
       } catch (err2) {
-        setError(String(err2));
+        setError(toAppError(err2).detail);
         setMode("idle");
       }
     }
@@ -744,7 +744,7 @@ function ProjectStep({
         await invoke<ProjectInfo>("create_first_project", { agent, name }),
       );
     } catch (e) {
-      setError(String(e));
+      setError(toAppError(e).detail);
     } finally {
       setCreating(false);
     }
@@ -802,7 +802,7 @@ function GraduationStep({
   const { t } = useI18n();
   const [running, setRunning] = useState(false);
   const [reply, setReply] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
   const [editors, setEditors] = useState<EditorInfo[]>([]);
   const [opening, setOpening] = useState<string | null>(null);
   const name = t(`agent.${agent}.name` as MessageKey);
@@ -855,7 +855,7 @@ function GraduationStep({
         }),
       );
     } catch (e) {
-      setError(String(e));
+      setError(toAppError(e));
     } finally {
       setRunning(false);
     }

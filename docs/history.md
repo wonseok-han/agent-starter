@@ -46,6 +46,27 @@
 
 ## 워크로그 (최신이 위)
 
+### 2026-07-22 · by Claude Opus 4.8
+
+**한 일 — 고도화 착수(기술부채 정리 ①): 백엔드 에러 구조화**
+- `src-tauri/src/error.rs` 신설 — `AppError { kind, detail }` + `ErrorKind`(network/checksum/not-found/permission/disk/generic). 모든 커맨드가 `Result<T, String>` → `Result<T, AppError>`로 전환
+- 원인을 아는 지점은 명시적 kind(예: curl 실패→network, tar 실패→checksum), io 에러는 `AppError::classify`로 원문(영어) 기반 분류. **에러 detail이 더는 한국어 프로즈가 아니라 영어 기술 텍스트** → 영어 모드에서 "자세한 내용"도 영어
+- 프론트 `doctor.ts`: `diagnoseError`(kind 우선, generic이면 로그 정규식 보완) + `toAppError`(객체/문자열 수용). `DoctorCard`가 문자열 대신 `AppError`를 받음
+- 검증: cargo test 10개 통과(에러 분류 단위테스트 포함), pnpm build 통과. 해피패스(Ok) 구조 불변이라 런타임 리스크 낮음, 실제 에러 경로는 실기기 검증 대기
+
+**다음 할 일**
+- [ ] 영속성 계층(tauri-plugin-store) → 홈베이스의 전제
+- [ ] 홈 화면 + 재방문 흐름(일회성 탈출) — App.tsx를 뷰 라우팅으로
+- [ ] 상주 닥터 + 에이전트 업데이트 알림
+- [ ] 첫 대화 프롬프트가 한국어 고정 — 영어 사용자에게 한국어 인사(콘텐츠 i18n, 별건)
+- [ ] 레시피 외부화(agent.rs → 원격 JSON)
+
+### 2026-07-21 · by GPT-5 Codex
+
+**한 일**
+- GitHub 저장소 About 설명을 비개발자용 Claude Code·Codex 설치 도우미라는 제품 성격이 드러나도록 작성
+- 제품·기술 스택·지원 플랫폼 중심의 GitHub 토픽 13개 등록
+
 ### 2026-07-21 · by GPT-5 Codex
 
 **한 일**

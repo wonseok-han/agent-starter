@@ -1,4 +1,5 @@
 use crate::agent::Agent;
+use crate::error::AppError;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -46,11 +47,11 @@ sandbox_mode = \"workspace-write\"
 pub async fn create_first_project(
     agent: String,
     name: Option<String>,
-) -> Result<ProjectInfo, String> {
+) -> Result<ProjectInfo, AppError> {
     let agent = Agent::from_id(&agent)?;
-    tauri::async_runtime::spawn_blocking(move || create(agent, name))
+    tauri::async_runtime::spawn_blocking(move || create(agent, name).map_err(AppError::classify))
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(|e| AppError::generic(e.to_string()))?
 }
 
 fn create(agent: Agent, name: Option<String>) -> Result<ProjectInfo, String> {
@@ -102,16 +103,15 @@ fn apply_safety_preset(agent: Agent, dir: &Path) -> Result<(), String> {
 
 /// 프로젝트 폴더에서 비대화형으로 첫 인사를 주고받는다.
 #[tauri::command]
-pub async fn run_first_chat(agent: String, project_path: String) -> Result<String, String> {
+pub async fn run_first_chat(agent: String, project_path: String) -> Result<String, AppError> {
     let agent = Agent::from_id(&agent)?;
     tauri::async_runtime::spawn_blocking(move || {
         let dir = PathBuf::from(&project_path);
         if !dir.is_dir() {
-            return Err("프로젝트 폴더를 찾을 수 없어요. 이전 단계로 돌아가 주세요.".into());
+            return Err(AppError::not_found("project folder not found"));
         }
-        let bin = crate::detect::agent_bin(agent).ok_or_else(|| {
-            format!("{}가 아직 설치되어 있지 않아요.", agent.display_name())
-        })?;
+        let bin = crate::detect::agent_bin(agent)
+            .ok_or_else(|| AppError::not_found(format!("{} is not installed", agent.bin_name())))?;
         let prompt =
             "코딩 도우미를 처음 만나는 사용자에게 두 문장 이내의 짧고 따뜻한 한국어 환영 인사를 해 주세요.";
         let out = crate::detect::command(&bin)
@@ -119,21 +119,22 @@ pub async fn run_first_chat(agent: String, project_path: String) -> Result<Strin
             .current_dir(&dir)
             .stdin(Stdio::null())
             .output()
-            .map_err(|e| format!("{}를 실행하지 못했어요: {e}", agent.display_name()))?;
+            .map_err(|e| AppError::classify(e.to_string()))?;
         let reply = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if out.status.success() && !reply.is_empty() {
             Ok(clean_reply(agent, &reply))
         } else {
+            // 에이전트 stderr에 원인이 담기므로 그대로 분류(네트워크 등)
             let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
-            Err(if err.is_empty() {
-                "대답을 받지 못했어요. 다시 시도해 주세요.".into()
+            Err(AppError::classify(if err.is_empty() {
+                "agent returned no reply".to_string()
             } else {
-                format!("대답을 받지 못했어요: {err}")
-            })
+                err
+            }))
         }
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| AppError::generic(e.to_string()))?
 }
 
 /// codex exec는 응답 앞에 메타 정보 블록을 출력하므로 마지막 문단만 남긴다

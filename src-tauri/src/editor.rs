@@ -166,8 +166,9 @@ pub async fn open_in_editor(
     editor: String,
     agent: String,
     path: String,
-) -> Result<(), String> {
-    let editor = Editor::from_id(&editor).ok_or("알 수 없는 편집기예요.")?;
+) -> Result<(), crate::error::AppError> {
+    use crate::error::AppError;
+    let editor = Editor::from_id(&editor).ok_or_else(|| AppError::generic("unknown editor"))?;
     let ext = crate::agent::Agent::from_id(&agent)?.extension_id();
     tauri::async_runtime::spawn_blocking(move || {
         let home = crate::detect::home_dir();
@@ -175,10 +176,10 @@ pub async fn open_in_editor(
         if let Some(cli) = editor.cli_path(&home) {
             let _ = ensure_extension(&cli, ext);
         }
-        open_folder(editor, &path)
+        open_folder(editor, &path).map_err(AppError::classify)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| AppError::generic(e.to_string()))?
 }
 
 /// 편집기 CLI로 확장이 없으면 설치한다 (best-effort).

@@ -1,4 +1,5 @@
 use crate::agent::Agent;
+use crate::error::AppError;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, Stdio};
@@ -33,16 +34,15 @@ pub enum LoginEvent {
 pub struct LoginSession(pub Mutex<Option<Child>>);
 
 #[tauri::command]
-pub async fn login_status(agent: String) -> Result<LoginStatus, String> {
+pub async fn login_status(agent: String) -> Result<LoginStatus, AppError> {
     let agent = Agent::from_id(&agent)?;
     tauri::async_runtime::spawn_blocking(move || {
-        let bin = crate::detect::agent_bin(agent).ok_or_else(|| {
-            format!("{}가 아직 설치되어 있지 않아요.", agent.display_name())
-        })?;
-        query_status(agent, &bin)
+        let bin = crate::detect::agent_bin(agent)
+            .ok_or_else(|| AppError::not_found(format!("{} is not installed", agent.bin_name())))?;
+        query_status(agent, &bin).map_err(AppError::classify)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| AppError::generic(e.to_string()))?
 }
 
 fn query_status(agent: Agent, bin: &std::path::Path) -> Result<LoginStatus, String> {
@@ -91,10 +91,10 @@ pub fn start_login(
     use_api_billing: Option<bool>,
     session: State<'_, LoginSession>,
     on_event: Channel<LoginEvent>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let agent = Agent::from_id(&agent)?;
     let bin = crate::detect::agent_bin(agent)
-        .ok_or_else(|| format!("{}가 아직 설치되어 있지 않아요.", agent.display_name()))?;
+        .ok_or_else(|| AppError::not_found(format!("{} is not installed", agent.bin_name())))?;
 
     let mut guard = session.0.lock().unwrap();
     if let Some(mut old) = guard.take() {
@@ -108,7 +108,7 @@ pub fn start_login(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("로그인을 시작하지 못했어요: {e}"))?;
+        .map_err(|e| AppError::classify(e.to_string()))?;
 
     let stdout = child.stdout.take().expect("stdout is piped");
     let stderr = child.stderr.take().expect("stderr is piped");
@@ -140,20 +140,20 @@ pub async fn submit_login_code(
     session: State<'_, LoginSession>,
     on_event: Channel<LoginEvent>,
     code: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let agent = Agent::from_id(&agent)?;
     let mut child = session
         .0
         .lock()
         .unwrap()
         .take()
-        .ok_or_else(|| "진행 중인 로그인이 없어요. 처음부터 다시 시도해 주세요.".to_string())?;
+        .ok_or_else(|| AppError::generic("no login in progress"))?;
 
     tauri::async_runtime::spawn_blocking(move || {
         if let Some(stdin) = child.stdin.as_mut() {
             stdin
                 .write_all(format!("{}\n", code.trim()).as_bytes())
-                .map_err(|e| format!("코드를 전달하지 못했어요: {e}"))?;
+                .map_err(|e| AppError::classify(e.to_string()))?;
         }
         // 프로세스 종료를 기다리되, 코드 교환이 성공했는데도 CLI가 안 끝나는 경우
         // (조직 선택 프롬프트 등)가 있으므로 로그인 상태를 함께 폴링해 판정한다
@@ -193,11 +193,11 @@ pub async fn submit_login_code(
         if success {
             Ok(())
         } else {
-            Err("코드 확인에 실패했어요. 코드를 다시 복사해서 시도해 주세요.".to_string())
+            Err(AppError::generic("login code verification failed"))
         }
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| AppError::generic(e.to_string()))?
 }
 
 #[tauri::command]

@@ -17,13 +17,6 @@ impl Agent {
         }
     }
 
-    pub fn display_name(self) -> &'static str {
-        match self {
-            Agent::ClaudeCode => "클로드 코드",
-            Agent::Codex => "코덱스",
-        }
-    }
-
     pub fn bin_name(self) -> &'static str {
         match self {
             Agent::ClaudeCode => "claude",

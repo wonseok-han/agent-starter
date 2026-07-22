@@ -1,6 +1,7 @@
 mod agent;
 mod detect;
 mod editor;
+mod error;
 mod install;
 mod login;
 mod project;
