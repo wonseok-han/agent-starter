@@ -5,6 +5,7 @@ mod error;
 mod install;
 mod login;
 mod project;
+mod status;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -22,7 +23,9 @@ pub fn run() {
             project::create_first_project,
             project::run_first_chat,
             editor::detect_editors,
-            editor::open_in_editor
+            editor::open_in_editor,
+            status::agent_status,
+            status::latest_agent_version
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -75,7 +75,7 @@ fn query_status(agent: Agent, bin: &std::path::Path) -> Result<LoginStatus, Stri
     }
 }
 
-fn is_logged_in(agent: Agent) -> bool {
+pub(crate) fn is_logged_in(agent: Agent) -> bool {
     crate::detect::agent_bin(agent)
         .and_then(|bin| query_status(agent, &bin).ok())
         .map(|s| s.logged_in)

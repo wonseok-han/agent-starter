@@ -63,6 +63,31 @@ interface EditorInfo {
   installed: boolean;
 }
 
+interface AgentStatus {
+  installed: boolean;
+  version: string | null;
+  loggedIn: boolean;
+  path: string | null;
+}
+
+const shortVersion = (v: string | null) => v?.split(" ")[0] ?? "";
+
+// "x.y.z"를 뽑아 숫자 배열로. 최신 > 설치 판정용.
+function semverParts(s: string): number[] | null {
+  const m = s.match(/(\d+)\.(\d+)\.(\d+)/);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+function isNewer(latest: string, installed: string): boolean {
+  const a = semverParts(latest);
+  const b = semverParts(installed);
+  if (!a || !b) return false;
+  for (let i = 0; i < 3; i++) {
+    if (a[i] > b[i]) return true;
+    if (a[i] < b[i]) return false;
+  }
+  return false;
+}
+
 type AgentId = "claude-code" | "codex";
 
 const AGENTS: { id: AgentId; vendor: string; recommended?: boolean }[] = [
@@ -167,6 +192,15 @@ function App() {
     setView("wizard");
   }
 
+  // 홈의 "내 에이전트"에서 특정 에이전트 설정으로 진입 — 진단부터(설치·로그인은 자동 스킵)
+  function setupAgent(id: AgentId) {
+    setAgent(id);
+    setReport(null);
+    setProject(null);
+    setStep(1);
+    setView("wizard");
+  }
+
   async function goHome() {
     const list = await listProjects();
     setProjects(list);
@@ -214,6 +248,7 @@ function App() {
         <HomeView
           projects={projects}
           onNew={startWizard}
+          onSetupAgent={setupAgent}
           onChanged={refreshHome}
         />
       ) : (
@@ -269,13 +304,110 @@ function App() {
   );
 }
 
+// 상주 에이전트 상태: 설치·로그인·업데이트를 홈에서 한눈에 (일회성 탈출의 "재방문 이유")
+function AgentRow({ id, onSetup }: { id: AgentId; onSetup: () => void }) {
+  const { t } = useI18n();
+  const [status, setStatus] = useState<AgentStatus | null>(null);
+  const [latest, setLatest] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
+  const name = t(`agent.${id}.name` as MessageKey);
+
+  async function refresh() {
+    try {
+      const s = await invoke<AgentStatus>("agent_status", { agent: id });
+      setStatus(s);
+      // 설치돼 있으면 백그라운드로 최신 버전 확인(느릴 수 있음, 실패는 조용히 무시)
+      if (s.installed && s.version) {
+        invoke<string | null>("latest_agent_version", { agent: id })
+          .then((v) => setLatest(v))
+          .catch(() => {});
+      }
+    } catch {
+      setStatus({ installed: false, version: null, loggedIn: false, path: null });
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function update() {
+    setUpdating(true);
+    const onEvent = new Channel();
+    try {
+      await invoke("install_agent", { agent: id, testHome: null, onEvent });
+      setLatest(null);
+      await refresh();
+    } catch {
+      // 실패 시 설정 화면으로 유도
+      onSetup();
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  const updateAvailable =
+    !!status?.installed &&
+    !!status.version &&
+    !!latest &&
+    isNewer(latest, status.version);
+
+  let statusText: string;
+  let statusClass: string;
+  if (!status) {
+    statusText = t("home.agent.checking");
+    statusClass = "";
+  } else if (!status.installed) {
+    statusText = t("home.agent.notInstalled");
+    statusClass = "warn";
+  } else if (!status.loggedIn) {
+    statusText = t("home.agent.needLogin");
+    statusClass = "warn";
+  } else if (updateAvailable) {
+    statusText = t("home.agent.updateAvailable", {
+      version: semverParts(latest!)!.join("."),
+    });
+    statusClass = "update";
+  } else {
+    statusText = t("home.agent.installed", {
+      version: shortVersion(status.version),
+    });
+    statusClass = "ok";
+  }
+
+  return (
+    <div className="agent-row">
+      <div className="agent-row-info">
+        <strong>{name}</strong>
+        <span className={`agent-status ${statusClass}`}>{statusText}</span>
+      </div>
+      {status && !status.installed ? (
+        <button className="ghost small" onClick={onSetup}>
+          {t("home.agent.setup")}
+        </button>
+      ) : status && !status.loggedIn ? (
+        <button className="ghost small" onClick={onSetup}>
+          {t("home.agent.setup")}
+        </button>
+      ) : updateAvailable ? (
+        <button className="primary small" onClick={update} disabled={updating}>
+          {updating ? t("home.agent.updating") : t("home.agent.update")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function HomeView({
   projects,
   onNew,
+  onSetupAgent,
   onChanged,
 }: {
   projects: SavedProject[];
   onNew: () => void;
+  onSetupAgent: (id: AgentId) => void;
   onChanged: () => void;
 }) {
   const { t, lang } = useI18n();
@@ -307,6 +439,13 @@ function HomeView({
 
   return (
     <main className="panel">
+      <section className="agents-panel">
+        <h3>{t("home.agents.title")}</h3>
+        {AGENTS.map((a) => (
+          <AgentRow key={a.id} id={a.id} onSetup={() => onSetupAgent(a.id)} />
+        ))}
+      </section>
+
       <div className="home-head">
         <div>
           <h2>{t("home.title")}</h2>

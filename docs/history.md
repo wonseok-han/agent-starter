@@ -22,7 +22,7 @@
 - **PATH**: macOS/Windows 인스톨러 둘 다 PATH를 스스로 등록 안 함 → `ensure_path`가 직접(`~/.zshrc` / Windows 사용자 PATH 레지스트리). 위저드는 절대경로 실행이라 PATH 비의존
 - **로그인 자동 감지**: 브라우저 세션이 있으면 확인 코드 없이 자동 승인으로 끝나는 경로가 있어, 대기 중 `auth status` 폴링으로 완료를 잡는다
 - **설치 방식**: 클로드 = 공식 install.sh/ps1, 코덱스 = GitHub 릴리즈 tar.gz
-- **Codex 데스크톱 앱**: CLI가 `/Applications/Codex.app/Contents/Resources/codex`에 번들(셸 PATH에 없음). 앱 로그인 자격증명을 CLI가 공유 → 감지되면 로그인도 건너뜀
+- **Codex 데스크톱 앱**: CLI가 앱 번들 `Contents/Resources/codex`에 번들(셸 PATH에 없음). 앱 로그인 자격증명을 CLI가 공유 → 감지되면 로그인도 건너뜀. **벤더가 앱을 옮김**: OpenAI가 Codex.app을 ChatGPT.app으로 통합(2026-07) → `/Applications/{ChatGPT,Codex}.app/...` 여러 후보로 감지(단일 경로 하드코딩 금지). 앞으로도 바뀔 수 있으니 후보 추가로 대응
 - **편집기 확장 ID**: Claude Code = `anthropic.claude-code`, Codex = `openai.chatgpt`. 편집기 CLI는 앱 번들 `Contents/Resources/app/bin/{cursor,code}`
 - **Windows PowerShell 함정**: 부모가 pwsh 7이면 `PSModulePath` 오염으로 5.1이 기본 cmdlet을 못 찾음 → 자식 실행 시 `PSModulePath` 제거
 - **코드 서명 미결정**: 베타는 미서명 + "확인 없이 열기" 안내, 정식은 서명·공증 필요(연 $250~400). 미서명이어도 설치는 가능(사용자가 보안 허용 한 번)
@@ -45,6 +45,21 @@
 ---
 
 ## 워크로그 (최신이 위)
+
+### 2026-07-22 · by Claude Opus 4.8 (3)
+
+**한 일 — 고도화: 상주 에이전트 상태 + 업데이트 알림 (홈베이스의 "재방문 이유")**
+- `src-tauri/src/status.rs` 신설 — `agent_status`(설치·버전·로그인, 로컬 빠름) + `latest_agent_version`(네트워크). 최신 버전: Claude=`downloads.claude.ai/.../stable`, Codex=`github.com/.../releases/latest` 리다이렉트 최종 URL에서 semver 추출(api.github.com은 60회/시 제한이라 회피)
+- 홈에 "내 에이전트" 패널(`AgentRow`): 각 에이전트 설치/로그인/업데이트 상태를 한눈에. 미설치·미로그인→"설정하기"(위저드 진단부터, 자동 스킵), 업데이트 가능→"업데이트"(인라인 install_agent). 최신 확인은 백그라운드(느림/오프라인이면 조용히 무시)
+- 프론트 semver 비교(`isNewer`), `detect::agent_version`/`login::is_logged_in` pub(crate) 노출
+- **실기기 검증**: 홈에서 클로드="설치됨·2.1.216"(최신) 정상 렌더. cargo test 11개 + pnpm build 통과
+- **감지 갭 수정**(사용자 지적): OpenAI가 Codex.app→ChatGPT.app 통합으로 CLI 경로 이동 → 코덱스가 "미설치"로 잘못 표시됨. `agent.rs` Codex 후보를 `/Applications/{ChatGPT,Codex}.app/...` 여러 개로 확장. 실기기에서 `ChatGPT.app/.../codex` 0.145.0 감지 확인. 교훈: 앱 번들 경로 단일 하드코딩은 벤더 변경에 취약
+
+**다음 할 일**
+- [ ] 업데이트/설정 실패 시 홈에서 DoctorCard 노출(현재는 설정 화면으로 유도만)
+- [ ] 재방문 "새 프로젝트"에서 에이전트 미리 선택
+- [ ] 첫 대화 프롬프트 한국어 고정(콘텐츠 i18n)
+- [ ] 레시피 외부화(agent.rs → 원격 JSON)
 
 ### 2026-07-22 · by Claude Opus 4.8 (2)
 

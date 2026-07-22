@@ -45,14 +45,14 @@ impl Agent {
                 }
                 Agent::Codex => {
                     dirs.push(home.join(".npm-global/bin"));
-                    // 데스크톱 앱(Codex.app)은 CLI를 앱 번들 Resources 안에 넣는다.
-                    // 이 경로는 셸 PATH에 없어 터미널 기준 감지로는 놓친다.
+                    // 데스크톱 앱은 CLI를 앱 번들 Resources 안에 넣는다(셸 PATH에 없어
+                    // 터미널 기준 감지로는 놓침). 벤더가 앱을 옮기므로 여러 후보를 둔다:
+                    // OpenAI가 Codex.app을 ChatGPT.app으로 통합(2026-07)해 경로가 바뀜.
                     #[cfg(target_os = "macos")]
-                    {
-                        dirs.push(PathBuf::from(
-                            "/Applications/Codex.app/Contents/Resources",
-                        ));
-                        dirs.push(home.join("Applications/Codex.app/Contents/Resources"));
+                    for app in ["ChatGPT.app", "Codex.app"] {
+                        let bundle = PathBuf::from(app).join("Contents/Resources");
+                        dirs.push(PathBuf::from("/Applications").join(&bundle));
+                        dirs.push(home.join("Applications").join(&bundle));
                     }
                 }
             }

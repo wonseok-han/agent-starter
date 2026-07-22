@@ -150,6 +150,11 @@ fn probe(
     None
 }
 
+/// 설치된 실행 파일의 `--version` 출력 (없거나 실패면 None)
+pub(crate) fn agent_version(path: &Path) -> Option<String> {
+    run_version(path)
+}
+
 fn run_version(path: &Path) -> Option<String> {
     let out = command(path).arg("--version").output().ok()?;
     if !out.status.success() {
