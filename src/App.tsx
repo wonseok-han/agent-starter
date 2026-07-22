@@ -72,6 +72,20 @@ interface AgentStatus {
 
 const shortVersion = (v: string | null) => v?.split(" ")[0] ?? "";
 
+// 하나라도 설치·로그인된 에이전트가 있으면 홈으로 갈 자격(온보딩 불필요)
+async function isAnyAgentReady(): Promise<boolean> {
+  try {
+    const results = await Promise.all(
+      (["claude-code", "codex"] as AgentId[]).map((id) =>
+        invoke<AgentStatus>("agent_status", { agent: id }).catch(() => null),
+      ),
+    );
+    return results.some((s) => s?.installed && s.loggedIn);
+  } catch {
+    return false;
+  }
+}
+
 // "x.y.z"를 뽑아 숫자 배열로. 최신 > 설치 판정용.
 function semverParts(s: string): number[] | null {
   const m = s.match(/(\d+)\.(\d+)\.(\d+)/);
@@ -167,11 +181,17 @@ function App() {
   const [report, setReport] = useState<EnvironmentReport | null>(null);
   const [project, setProject] = useState<ProjectInfo | null>(null);
 
-  // 앱 실행: 저장된 프로젝트가 있으면 홈, 없으면 첫 온보딩 위저드
+  // 홈 진입 조건: 저장된 프로젝트가 있거나, 이미 에이전트를 설치·로그인해 둔 경우
+  // (이미 준비된 사용자는 초보자가 아니므로 온보딩 위저드를 건너뛴다).
+  // 둘 다 아니면 첫 온보딩 위저드.
   async function refreshHome() {
     const list = await listProjects();
     setProjects(list);
-    setView(list.length > 0 ? "home" : "wizard");
+    if (list.length > 0) {
+      setView("home");
+      return;
+    }
+    setView((await isAnyAgentReady()) ? "home" : "wizard");
   }
   useEffect(() => {
     refreshHome();
