@@ -34,6 +34,7 @@
 - **오류/i18n 경계**: Rust 오류는 `AppError { kind, detail }`로 구조화하고 상세 기술 오류는 영어로 통일. 초보자용 설명은 프론트 i18n에서 표시. 프로젝트 안전 안내와 첫 대화 프롬프트도 선택 언어를 Rust로 전달해 한·영 생성
 - **닥터 적용 범위**: 구조화 오류를 network/checksum/notfound/permission/disk/generic으로 해석해 i18n 문구와 재시도를 제공. 진단·설치·로그인·프로젝트 생성·첫 대화와 홈의 상태/업데이트·프로젝트 스캔 실패에 적용
 - **홈베이스**: 프로젝트가 있거나 설치·로그인된 에이전트가 있으면 홈으로 진입. 기준 폴더 바로 아래에서 `.claude`/`CLAUDE.md`/`AGENTS.md` 표식을 스캔하고, 에이전트 상태와 업데이트를 표시
+- **릴리스 게이트**: `.github/workflows/ci.yml`에서 데스크톱 macOS·Windows 빌드/테스트/격리 설치와 소개 웹사이트 빌드·렌더·린트를 검증. 사람 확인 항목과 미서명 베타/정식 서명 기준은 `docs/release-checklist.md`를 단일 체크리스트로 사용
 
 ## 작업 규칙 (고정)
 
@@ -47,6 +48,26 @@
 ---
 
 ## 워크로그 (최신이 위)
+
+### 2026-07-22 · by GPT-5 Codex
+
+**한 일 — 출시 검증 자동화와 체크리스트 보강**
+- 실제 공식 배포 파일을 내려받는 격리 설치 E2E를 네트워크 허용 환경에서 실행해 Claude Code와 Codex의 임시 HOME 설치, PATH 반영, 버전 확인까지 검증
+- 소개 웹사이트가 데스크톱 앱 CI에서 빠져 있던 공백을 보완: Ubuntu에서 `npm ci` → 빌드·렌더링 테스트 → ESLint를 실행하는 `website` job 추가
+- `docs/release-checklist.md` 신설: 자동 검증, 깨끗한 macOS/Windows 계정, 네트워크·권한·잘못된 기준 폴더 등 닥터 실패 경로, 미서명 베타와 정식 서명 배포 게이트를 한곳에 정리
+- README 문서 목록에 릴리스 체크리스트 연결
+
+**검증**
+- `cargo test --manifest-path src-tauri/Cargo.toml isolated_install -- --ignored --nocapture`: 2 passed — Claude Code 2.1.217, Codex CLI 0.145.0 설치·검증
+- `cargo test --manifest-path src-tauri/Cargo.toml`: 15 passed, 0 failed, 6 ignored
+- `pnpm build` 통과
+- `website/`의 `npm test`: 빌드 및 렌더링 테스트 2 passed
+- `website/`의 `npm run lint` 통과
+
+**다음 할 일**
+- [ ] `docs/release-checklist.md`에 따라 네트워크 단절·권한 오류·잘못된 기준 폴더 닥터 UI를 실기기에서 확인
+- [ ] Actions가 만든 DMG·NSIS 설치 파일을 깨끗한 macOS 계정과 Windows 기기에서 전체 검증
+- [ ] 미서명 제한 베타 또는 macOS 공증·Windows 코드 서명을 포함한 정식 배포 방식 결정 후 첫 릴리스
 
 ### 2026-07-22 · by GPT-5 Codex
 

@@ -6,6 +6,29 @@ on:
   pull_request:
 
 jobs:
+  # 소개 웹사이트는 데스크톱 앱과 배포 단위가 달라 별도로 검증한다.
+  website:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - run: npm ci
+
+      - name: 웹사이트 빌드 + 렌더링 테스트
+        run: npm test
+
+      - name: 웹사이트 린트
+        run: npm run lint
+
   # 프론트 빌드 + Rust 테스트 (macOS / Windows 동시)
   test:
     strategy:
