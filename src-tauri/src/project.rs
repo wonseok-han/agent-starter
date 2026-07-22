@@ -36,10 +36,21 @@ pub async fn scan_projects(base: String) -> Result<Vec<ScannedProject>, AppError
         let dir = PathBuf::from(&base);
         let mut found = Vec::new();
         let entries = std::fs::read_dir(&dir).map_err(|e| {
-            AppError::classify(format!(
+            // 에러 문구는 OS마다 다르므로(Windows "cannot find the path" 등)
+            // 텍스트가 아니라 io 에러 종류로 판정한다 — 플랫폼 무관.
+            let detail = format!(
                 "cannot read project base directory '{}': {e}",
                 dir.display()
-            ))
+            );
+            match e.kind() {
+                std::io::ErrorKind::NotFound => {
+                    AppError::new(crate::error::ErrorKind::NotFound, detail)
+                }
+                std::io::ErrorKind::PermissionDenied => {
+                    AppError::new(crate::error::ErrorKind::Permission, detail)
+                }
+                _ => AppError::generic(detail),
+            }
         })?;
         for entry in entries.flatten() {
             let path = entry.path();
