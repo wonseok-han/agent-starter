@@ -21,7 +21,9 @@ jobs:
           cache: npm
           cache-dependency-path: website/package-lock.json
 
-      - run: npm ci
+      # npm ci 대신 install — rolldown/sharp 등 플랫폼별 네이티브 optional
+      # 바이너리는 lock에 다 담기지 않아(npm/cli#4828) 러너 OS용을 그때 받아온다.
+      - run: npm install --no-audit --no-fund
 
       - name: 웹사이트 빌드 + 렌더링 테스트
         run: npm test
