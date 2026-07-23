@@ -94,6 +94,11 @@ jobs:
           workspaces: src-tauri
 
       - name: Tauri Windows 빌드 (NSIS 인스톨러)
+        # createUpdaterArtifacts가 켜져 있어 tauri build가 업데이터 서명을 강제한다.
+        # (public key만 있고 private key가 없으면 빌드 실패)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
 
       - uses: actions/upload-artifact@v4
@@ -127,6 +132,10 @@ jobs:
           workspaces: src-tauri
 
       - name: Tauri macOS 빌드 (.dmg + .app)
+        # createUpdaterArtifacts가 켜져 있어 tauri build가 업데이터 서명을 강제한다.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build
 
       - uses: actions/upload-artifact@v4

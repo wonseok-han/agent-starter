@@ -59,10 +59,11 @@ summary {
   align-items: center;
   gap: 40px;
   border-bottom: 1px solid rgba(229, 229, 223, 0.78);
-  background: rgba(247, 247, 244, 0.88);
+  /* 거의 불투명한 배경으로 처리해 sticky 헤더에 backdrop-filter blur를 쓰지 않는다.
+     blur는 스크롤 중 매 프레임 재계산돼, 앵커 네비게이션을 빠르게 반복하면
+     컴포지터가 버벅이다 멈추는(먹통) 원인이 된다. */
+  background: rgba(247, 247, 244, 0.96);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  backdrop-filter: blur(18px) saturate(150%);
 }
 
 .brand {
@@ -513,11 +514,10 @@ footer > a:last-child:hover {
   gap: 8px;
   border: 1px solid var(--line);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 10px 25px rgba(25, 28, 30, 0.09);
   font-size: 11px;
   font-weight: 750;
-  backdrop-filter: blur(8px);
 }
 
 .trust-chip span {
