@@ -142,14 +142,14 @@ export default function Home() {
           <a href="#faq">자주 묻는 질문</a>
         </nav>
         <a className="header-cta" href="#download">
-          출시 소식 보기
+          다운로드
         </a>
       </header>
 
       <section className="hero" id="top">
         <div className="hero-copy">
           <p className="section-kicker">
-            <span className="status-dot" /> macOS · Windows 베타 준비 중
+            <span className="status-dot" /> macOS · Windows 베타 공개
           </p>
           <h1>
             터미널을 몰라도,
@@ -163,8 +163,8 @@ export default function Home() {
           </p>
           <div className="hero-actions">
             <a className="button primary" href="#download">
-              베타 출시 소식 받기
-              <span aria-hidden="true">→</span>
+              베타 다운로드
+              <span aria-hidden="true">↓</span>
             </a>
             <a
               className="button secondary"
@@ -359,20 +359,20 @@ export default function Home() {
       <section className="download-section" id="download">
         <div>
           <p className="section-kicker light">Hello, Agent 0.1</p>
-          <h2>첫 번째 베타를 준비하고 있어요.</h2>
+          <h2>첫 베타를 지금 받을 수 있어요.</h2>
           <p>
-            macOS와 Windows에서 안심하고 시작할 수 있도록 마지막 확인을 하고
-            있습니다. GitHub에서 개발 소식을 가장 먼저 만나보세요.
+            macOS와 Windows용 설치 파일을 GitHub 릴리스에서 내려받으세요.
+            미서명 베타라 처음 실행할 때 한 번만 보안 허용이 필요해요.
           </p>
         </div>
         <a
           className="button download-button"
-          href="https://github.com/wonseok-han/hello-agent"
+          href="https://github.com/wonseok-han/hello-agent/releases/latest"
           target="_blank"
           rel="noreferrer"
         >
-          GitHub에서 진행 상황 보기
-          <span aria-hidden="true">↗</span>
+          베타 다운로드 (macOS · Windows)
+          <span aria-hidden="true">↓</span>
         </a>
       </section>
 
