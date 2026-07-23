@@ -71,5 +71,8 @@ jobs:
 
             현재 미서명 베타 빌드라 처음 실행 시 보안 경고가 뜰 수 있습니다.
           releaseDraft: true
-          prerelease: true
+          # 베타는 버전(v0.1.x)·릴리스 노트로 표시한다. GitHub "Pre-release" 플래그를
+          # 켜면 releases/latest가 이 릴리스를 안 가리켜(정식만 대상) 문서의 latest 링크가
+          # 목록으로 튕기므로 끈다.
+          prerelease: false
           args: ${{ matrix.args }}
